@@ -135,28 +135,7 @@ class Drop
 end
 
 if __FILE__ == $0
-  require 'pp'
-
-  drop = Drop.new('test')
-  while line = gets
-    drop.write('line' => line)
-  end
-  pp drop
-
-=begin  
-  key = drop.write('head' => 0)
-  # drop.write('tail'=>1)
-  
-  Thread.new(key) do |x|
-    p drop.read_after(x, 3)
-    sleep(1)
-    drop.write('tail'=>2)
-  end
-  
-  10.times do |n|
-    drop.write('hello'=>n)
-  end
-
-  p drop.read_prop_after(key, 'tail', 3)
-=end
+  drop = Drop.new('my_log.db')
+  DRb.start_service('druby://localhost:54545', drop)
+  DRb.thread.join
 end
