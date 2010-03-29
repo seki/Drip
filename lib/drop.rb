@@ -3,23 +3,44 @@ require 'drb/drb'
 require 'rinda/tuplespace'
 
 class Drop
-  def initialize
+  class SimpleStore
+    def initialize(name)
+      @file = File.open(name, 'a+b')
+    end
+    
+    def write(key, value)
+      Marshal.dump([key, value], @file)
+      @file.flush
+    end
+
+    def each
+      @file.rewind
+      while true
+        key, value = Marshal.load(@file)
+        yield(key, value)
+      end
+    rescue EOFError
+    end
+  end
+
+  def initialize(store)
+    @store = String === store ? SimpleStore.new(store) : store
     @pool = RBTree.new
     @prop = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
+    make_key {|nop|}
+    restore
   end
 
   def first
     @pool.first
   end
 
-  def write(hash)
+  def write(value)
     make_key do |key|
-      hash.each do |k, v|
-        @prop[[k, key]] = v
-      end
-      @pool[key] = hash
+      do_write(key, value)
+      @store.write(key, value)
     end
   end
 
@@ -56,6 +77,23 @@ class Drop
   end
   
   private
+  def do_write(key, value)
+    value.each do |k, v|
+      @prop[[k, key]] = v
+    end
+    @pool[key] = value
+  end
+
+  def restore
+    _, last = @event.take([:last, nil])
+    @store.each do |k, v|
+      do_write(k, v)
+      last = k if last < k
+    end
+  ensure
+    @event.write([:last, last])
+  end
+
   def make_key
     _, last = @event.take([:last, nil])
     begin
@@ -97,8 +135,15 @@ class Drop
 end
 
 if __FILE__ == $0
-  drop = Drop.new
+  require 'pp'
 
+  drop = Drop.new('test')
+  while line = gets
+    drop.write('line' => line)
+  end
+  pp drop
+
+=begin  
   key = drop.write('head' => 0)
   # drop.write('tail'=>1)
   
@@ -113,4 +158,5 @@ if __FILE__ == $0
   end
 
   p drop.read_prop_after(key, 'tail', 3)
+=end
 end
