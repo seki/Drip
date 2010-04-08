@@ -1,9 +1,27 @@
 require 'rbtree'
 require 'drb/drb'
 require 'rinda/tuplespace'
+require 'enumerator'
 
 class Drop
+  include DRbUndumped
+
   class SimpleStore
+    def self.reader(name)
+      self.to_enum(:each, name)
+    end
+
+    def self.each(name)
+      file = File.open(name, 'rb')
+      while true
+        key, value = Marshal.load(file)
+        yield(key, value)
+      end
+    rescue EOFError
+    ensure
+      file.close if file
+    end
+
     def initialize(name)
       @file = File.open(name, 'a+b')
     end
@@ -12,31 +30,27 @@ class Drop
       Marshal.dump([key, value], @file)
       @file.flush
     end
-
-    def each
-      @file.rewind
-      while true
-        key, value = Marshal.load(@file)
-        yield(key, value)
-      end
-    rescue EOFError
-    end
   end
 
-  def initialize(store)
-    @store = String === store ? SimpleStore.new(store) : store
+  def initialize(dir)
+    @dir = dir
     @pool = RBTree.new
     @prop = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
     make_key {|nop|}
-    restore
+    prepare_store(dir)
+    @store = SimpleStore.new(File.join(dir, "#{(last_key + 1).to_s(36)}.log"))
   end
 
   def first
     @pool.first
   end
 
+  def last_key
+    @event.read([:last, nil])[1]
+  end
+  
   def write(value)
     make_key do |key|
       do_write(key, value)
@@ -52,10 +66,10 @@ class Drop
     @prop[prop, key]
   end
   
-  def read_after(key, n, blocking=true)
-    wait(key) if blocking
+  def read_after(key, n, at_least=1)
     ary = []
     n.times do
+      wait(key) if at_least > ary.size
       it = @pool.lower_bound(succ(key))
       return ary unless it
       ary << it
@@ -64,10 +78,10 @@ class Drop
     ary
   end
 
-  def read_prop_after(key, prop, n, blocking=true)
-    wait_prop(key, prop) if blocking
+  def read_prop_after(key, prop, n, at_least=1)
     ary = []
     n.times do
+      wait_prop(key, prop) if at_least > ary.size
       it = @prop.lower_bound([prop, succ(key)])
       return ary unless it && it[0][0] == prop
       ary << it
@@ -77,21 +91,33 @@ class Drop
   end
   
   private
+  def prepare_store(dir)
+    Dir.mkdir(dir) rescue nil
+    Dir.glob(File.join(dir, '*.log')) do |fn|
+      begin
+        store = SimpleStore.reader(fn)
+        restore(store)
+      rescue
+      end
+    end
+  end
+
   def do_write(key, value)
     value.each do |k, v|
+      next unless String === k
       @prop[[k, key]] = v
     end
     @pool[key] = value
   end
 
-  def restore
+  def restore(store)
     _, last = @event.take([:last, nil])
-    @store.each do |k, v|
+    store.each do |k, v|
       do_write(k, v)
-      last = k if last < k
     end
+    last ,= @pool.last
   ensure
-    @event.write([:last, last])
+    @event.write([:last, last || 0])
   end
 
   def make_key
@@ -135,7 +161,7 @@ class Drop
 end
 
 if __FILE__ == $0
-  drop = Drop.new('my_log.db')
+  drop = Drop.new('my_log')
   DRb.start_service('druby://localhost:54545', drop)
   DRb.thread.join
 end
