@@ -3,50 +3,20 @@ require 'drb/drb'
 require 'rinda/tuplespace'
 
 class Drop
-  class Unknown
-    def initialize(err, buf)
-      case err.to_s
-      when /uninitialized constant (\S+)/
-        @name = $1
-      when /undefined class\/module (\S+)/
-        @name = $1
-      else
-        @name = nil
-      end
-      @buf = buf
-    end
-    
-    def [](key)
-      [self.class.to_s, @name, @buf]
-    end
-  end
-
   class SimpleStore
     def initialize(name)
       @file = File.open(name, 'a+b')
     end
     
-    MAX_LONG = 2 ** 32
     def write(key, value)
-      buf = Marshal.dump(value)
-      header = (key.divmod(MAX_LONG) + [buf.size]).pack('NNN')
-      @file.write(header)
-      @file.write(buf)
+      Marshal.dump([key, value], @file)
       @file.flush
     end
 
     def each
       @file.rewind
       while true
-        buf = @file.read(12) || break
-        header = buf.unpack('NNN')
-        key = header[0] * MAX_LONG + header[1]
-        buf = @file.read(header[2])
-        begin
-          value = Marshal.load(buf)
-        rescue NameError, ArgumentError
-          value = Unknown.new($!, s)
-        end
+        key, value = Marshal.load(@file)
         yield(key, value)
       end
     rescue EOFError
@@ -166,16 +136,6 @@ end
 
 if __FILE__ == $0
   drop = Drop.new('my_log.db')
-#   DRb.start_service('druby://localhost:54545', drop)
-#   DRb.thread.join
-  key = 0
-  while it = drop.read_after(key, 1, false)
-    break unless it[0]
-    p it[0]
-    key = it[0][0]
-  end
-
-  while line = gets
-    p drop.write('line' => line)
-  end
+  DRb.start_service('druby://localhost:54545', drop)
+  DRb.thread.join
 end
