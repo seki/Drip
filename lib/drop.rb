@@ -6,6 +6,82 @@ require 'enumerator'
 class Drop
   include DRbUndumped
 
+  def initialize(dir)
+    @pool = RBTree.new
+    @prop = RBTree.new
+    @event = Rinda::TupleSpace.new
+    @event.write([:last, 0])
+    make_key {|nop|}
+    prepare_store(dir)
+  end
+
+  def first
+    @pool.first
+  end
+
+  def last
+    @pool.last
+  end
+  
+  def write(value)
+    make_key do |key|
+      do_write(key, value)
+      @store.write(key, value)
+    end
+  end
+
+  def fetch(key)
+    @pool[key]
+  end
+  alias [] fetch
+  
+  def prop(key, prop)
+    @prop[prop, key]
+  end
+  
+  def read_after(key, n=1, at_least=1)
+    ary = []
+    n.times do
+      wait(key) if at_least > ary.size
+      it = @pool.lower_bound(key + 1)
+      return ary unless it
+      ary << it
+      key = it[0]
+    end
+    ary
+  end
+
+  def read_prop_after(key, prop, n=1, at_least=1)
+    ary = []
+    n.times do
+      wait_prop(key, prop) if at_least > ary.size
+      it ,= @prop.lower_bound([prop, key + 1])
+      return ary unless it && it[0] == prop
+      ary << it
+      key = it[1]
+    end
+    ary
+  end
+
+  def read_before(key, prop=nil)
+    if prop
+      it ,= @prop.upper_bound([prop, key - 1])
+      return nil unless it && it[0] == prop
+      [it[1], @pool[it[1]]]
+    else
+      @pool.upper_bound(key)
+    end
+  end
+
+  def time_to_key(time)
+    time.tv_sec * 1000000 + time.tv_usec
+  end
+
+  def key_to_time(key)
+    Time.at(*key.divmod(1000000))
+  end
+  
+  private
   class SimpleStore
     def self.reader(name)
       self.to_enum(:each, name)
@@ -23,75 +99,26 @@ class Drop
     end
 
     def initialize(name)
-      @file = File.open(name, 'a+b')
+      if name
+        @file = File.open(name, 'a+b')
+      else
+        @file = nil
+      end
     end
     
     def write(key, value)
+      return unless @file
       Marshal.dump([key, value], @file)
       @file.flush
     end
   end
 
-  def initialize(dir)
-    @dir = dir
-    @pool = RBTree.new
-    @prop = RBTree.new
-    @event = Rinda::TupleSpace.new
-    @event.write([:last, 0])
-    make_key {|nop|}
-    prepare_store(dir)
-    @store = SimpleStore.new(File.join(dir, "#{(last_key + 1).to_s(36)}.log"))
-  end
-
-  def first
-    @pool.first
-  end
-
-  def last_key
-    @event.read([:last, nil])[1]
-  end
-  
-  def write(value)
-    make_key do |key|
-      do_write(key, value)
-      @store.write(key, value)
-    end
-  end
-
-  def read(key)
-    @pool[key]
-  end
-  
-  def read_prop(key, prop)
-    @prop[prop, key]
-  end
-  
-  def read_after(key, n, at_least=1)
-    ary = []
-    n.times do
-      wait(key) if at_least > ary.size
-      it = @pool.lower_bound(succ(key))
-      return ary unless it
-      ary << it
-      key = it[0]
-    end
-    ary
-  end
-
-  def read_prop_after(key, prop, n, at_least=1)
-    ary = []
-    n.times do
-      wait_prop(key, prop) if at_least > ary.size
-      it = @prop.lower_bound([prop, succ(key)])
-      return ary unless it && it[0][0] == prop
-      ary << it
-      key = it[0][1]
-    end
-    ary
-  end
-  
-  private
   def prepare_store(dir)
+    if dir.nil?
+      @store = SimpleStore.newn(nil)
+      return
+    end
+
     Dir.mkdir(dir) rescue nil
     Dir.glob(File.join(dir, '*.log')) do |fn|
       begin
@@ -100,6 +127,8 @@ class Drop
       rescue
       end
     end
+    name = time_to_key(Time.now).to_s(36) + '.log'
+    @store = SimpleStore.new(File.join(dir, name))
   end
 
   def do_write(key, value)
@@ -123,8 +152,7 @@ class Drop
   def make_key
     _, last = @event.take([:last, nil])
     begin
-      now = Time.now
-      key = now.tv_sec * 1000000 + now.tv_usec
+      key = time_to_key(Time.now)
     end while last == key
     yield(key)
     key
@@ -148,15 +176,11 @@ class Drop
 
   def wait_prop(key, prop)
     wait(key)
-    okey = succ(key)
+    okey = key + 1
     begin
       found = @prop.lower_bound([prop, okey])
       return found if found && found[0][0] == prop
     end while key = wait(key)
-  end
-  
-  def succ(key)
-    key + 1
   end
 end
 
