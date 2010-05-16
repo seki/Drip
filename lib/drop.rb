@@ -6,6 +6,8 @@ require 'enumerator'
 class Drop
   include DRbUndumped
 
+  def inspect; to_s; end
+
   def initialize(dir)
     @pool = RBTree.new
     @prop = RBTree.new
@@ -36,7 +38,7 @@ class Drop
   alias [] fetch
   
   def prop(key, prop)
-    @prop[prop, key]
+    @pool[key][prop]
   end
   
   def read_after(key, n=1, at_least=1)
@@ -64,6 +66,7 @@ class Drop
   end
 
   def read_before(key, prop=nil)
+    key = time_to_key(Time.now) unless key
     if prop
       it ,= @prop.upper_bound([prop, key - 1])
       return nil unless it && it[0] == prop
@@ -134,7 +137,7 @@ class Drop
   def do_write(key, value)
     value.each do |k, v|
       next unless String === k
-      @prop[[k, key]] = v
+      @prop[[k, key]] = key
     end
     @pool[key] = value
   end
@@ -178,8 +181,8 @@ class Drop
     wait(key)
     okey = key + 1
     begin
-      found = @prop.lower_bound([prop, okey])
-      return found if found && found[0][0] == prop
+      it ,= @prop.lower_bound([prop, okey])
+      return if it && it[0] == prop
     end while key = wait(key)
   end
 end
