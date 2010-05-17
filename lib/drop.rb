@@ -6,6 +6,35 @@ require 'enumerator'
 class Drop
   include DRbUndumped
 
+  class Attic
+    def initialize(fname, fpos, key, value)
+      @fname = fname
+      @fpos = fpos
+      @key = key
+      @value = value
+    end
+    
+    def to_hash
+      retrieve unless @value
+      @value
+    end
+    
+    def [](prop)
+      to_hash[prop]
+    end
+    
+    def forget
+      @value = nil
+    end
+    
+    def retrieve
+      File.open(@fname) do |fp|
+        fp.seek(@fpos)
+        @key, @value = Marshal.load(fp)
+      end
+    end
+  end
+
   def inspect; to_s; end
 
   def initialize(dir)
@@ -17,14 +46,6 @@ class Drop
     prepare_store(dir)
   end
 
-  def first
-    @pool.first
-  end
-
-  def last
-    @pool.last
-  end
-  
   def write(value)
     make_key do |key|
       do_write(key, value)
@@ -33,7 +54,7 @@ class Drop
   end
 
   def fetch(key)
-    @pool[key]
+    @pool[key].to_hash
   end
   alias [] fetch
   
@@ -47,7 +68,7 @@ class Drop
       wait(key) if at_least > ary.size
       it = @pool.lower_bound(key + 1)
       return ary unless it
-      ary << it
+      ary << [it[0], it[1].to_hash]
       key = it[0]
     end
     ary
@@ -70,9 +91,10 @@ class Drop
     if prop
       it ,= @prop.upper_bound([prop, key - 1])
       return nil unless it && it[0] == prop
-      [it[1], @pool[it[1]]]
+      [it[1], fetch(it[1])]
     else
-      @pool.upper_bound(key)
+      k, v = @pool.upper_bound(key)
+      k ? [k, v.to_hash] : nil
     end
   end
 
@@ -93,8 +115,9 @@ class Drop
     def self.each(name)
       file = File.open(name, 'rb')
       while true
+        pos = file.pos
         key, value = Marshal.load(file)
-        yield(key, value)
+        yield(name, pos, key, value)
       end
     rescue EOFError
     ensure
@@ -118,7 +141,7 @@ class Drop
 
   def prepare_store(dir)
     if dir.nil?
-      @store = SimpleStore.newn(nil)
+      @store = SimpleStore.new(nil)
       return
     end
 
@@ -144,8 +167,10 @@ class Drop
 
   def restore(store)
     _, last = @event.take([:last, nil])
-    store.each do |k, v|
+    store.each do |name, pos, k, v|
       do_write(k, v)
+      @pool[k] = Attic.new(name, pos, k, v)
+      @pool[k].forget
     end
     last ,= @pool.last
   ensure
