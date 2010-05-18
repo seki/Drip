@@ -77,6 +77,15 @@ class Drop
     Time.at(*key.divmod(1000000))
   end
   
+  def _forget(key=nil)
+    key = time_to_key(Time.now) unless key    
+    @pool.each do |k, v|
+      return if k > key
+      v.forget
+    end
+    nil
+  end
+
   private
   class Attic
     def initialize(fname, fpos, key, value)
