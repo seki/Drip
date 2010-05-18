@@ -6,35 +6,6 @@ require 'enumerator'
 class Drop
   include DRbUndumped
 
-  class Attic
-    def initialize(fname, fpos, key, value)
-      @fname = fname
-      @fpos = fpos
-      @key = key
-      @value = value
-    end
-    
-    def to_hash
-      retrieve unless @value
-      @value
-    end
-    
-    def [](prop)
-      to_hash[prop]
-    end
-    
-    def forget
-      @value = nil
-    end
-    
-    def retrieve
-      File.open(@fname) do |fp|
-        fp.seek(@fpos)
-        @key, @value = Marshal.load(fp)
-      end
-    end
-  end
-
   def inspect; to_s; end
 
   def initialize(dir)
@@ -49,7 +20,7 @@ class Drop
   def write(value)
     make_key do |key|
       do_write(key, value)
-      @store.write(key, value)
+      @pool[key] = @store.write(key, value)
     end
   end
 
@@ -107,6 +78,35 @@ class Drop
   end
   
   private
+  class Attic
+    def initialize(fname, fpos, key, value)
+      @fname = fname
+      @fpos = fpos
+      @key = key
+      @value = value
+    end
+    
+    def to_hash
+      retrieve unless @value
+      @value
+    end
+    
+    def [](prop)
+      to_hash[prop]
+    end
+    
+    def forget
+      @value = nil
+    end
+    
+    def retrieve
+      File.open(@fname) do |fp|
+        fp.seek(@fpos)
+        @key, @value = Marshal.load(fp)
+      end
+    end
+  end
+
   class SimpleStore
     def self.reader(name)
       self.to_enum(:each, name)
@@ -134,8 +134,11 @@ class Drop
     
     def write(key, value)
       return unless @file
+      name = @file.path
+      pos = @file.pos
       Marshal.dump([key, value], @file)
       @file.flush
+      Attic.new(name, pos, key, value)
     end
   end
 
