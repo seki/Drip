@@ -1,0 +1,17 @@
+<h2><%=h session.text %></h2>
+<ul>
+<%
+last_group = nil
+session.result.each_slice(30) do |ary|
+  ary.each do |v|
+    group = v[:name]
+    if group != last_group %>
+        <li class="group"><%=h group %></li>
+<%    last_group = group
+    end
+%>      <li><img src="<%= context.req_script_name.to_s + v[:thumb]%>" /><%=h v.inspect %></li><%
+  end
+  break
+end
+%>
+</ul>
