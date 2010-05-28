@@ -3,29 +3,7 @@ require 'drop'
 require 'tofu'
 require 'poke'
 require 'monitor'
-
-class PageFolder
-  include MonitorMixin
-  def initialize(drop)
-    super()
-    @drop = drop
-  end
-  
-  def [](uri)
-    k, v = @drop.read_before(nil, "uri=#{uri}")
-    return v['body'] if k
-    synchronize do
-      begin
-        p [:open, uri]
-        body = open(uri).read
-        @drop.write({"uri=#{uri}" => uri, "body" => body})
-        body
-      rescue
-        nil
-      end
-    end
-  end
-end
+require 'drawer'
 
 class BaseDiv < Tofu::Div
   set_erb('base.erb')
@@ -34,6 +12,7 @@ class BaseDiv < Tofu::Div
     super(session)
     @enter = EnterDiv.new(session)
     @list = ListDiv.new(session)
+    @drawer = DrawerDiv.new(session)
   end
 end
 
@@ -60,12 +39,12 @@ class DeckSession < Tofu::Session
     super
     @base = BaseDiv.new(self)
     @drop = $drop
-    @folder = $page_folder
-    @pcc = PokemonCardCom.new(@folder)
+    @pcc = PokemonCardCom.new(@drop)
     @result = []
     @text = ''
+    @drawer = Drawer.new('main', @pcc)
   end
-  attr_reader :folder, :result, :text
+  attr_reader :result, :text, :drawer
 
   def add(url)
     @folder[url]
@@ -87,6 +66,7 @@ class DeckSession < Tofu::Session
     ary = []
     @pcc.search_by_name(text) do |detail, thumb|
       it = @pcc.card_summary(detail)
+      next unless it
       it[:thumb] = thumb
       ary << it
     end
@@ -102,6 +82,7 @@ class DeckSession < Tofu::Session
     else
       context.res_header('content-type', 'image/jpeg') #FIXME
     end
+    context.res_header('cache-contol','max-age=2592000')
     context.res_body(@pcc.get(context.req_path_info))
   end
   
@@ -112,7 +93,6 @@ class DeckSession < Tofu::Session
 end
 
 $drop = Drop.new('drop_db')
-$page_folder = PageFolder.new($drop)
 
 uri = ARGV.shift || 'druby://localhost:54322'
 tofu = Tofu::Bartender.new(DeckSession)

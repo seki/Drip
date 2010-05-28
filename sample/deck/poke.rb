@@ -3,10 +3,59 @@ require 'hpricot'
 require 'open-uri'
 require 'erb'
 require 'nkf'
+require 'monitor'
+
+class PageFolder
+  include MonitorMixin
+
+  def initialize(drop)
+    super()
+    @drop = drop
+  end
+
+  def get(prop)
+    k, v = @drop.read_before(nil, prop)
+    return v if k
+    yield(@drop)
+  end
+
+  def get_page(uri)
+    get("uri=#{uri}") { |drop|
+      synchronize do
+        begin
+          p [:open, uri]
+          body = open(uri).read
+          return '' if body.nil? || body.empty?
+          drop.write({"uri=#{uri}" => uri, "body" => body})
+          return body
+        rescue
+          return ''
+        end
+      end
+    }['body']
+  end
+
+  def [](uri)
+    k, v = @drop.read_before(nil, "uri=#{uri}")
+    return v['body'] if k
+    synchronize do
+      begin
+        p [:open, uri]
+        body = open(uri).read
+        return '' if body.nil? || body.empty?
+        @drop.write({"uri=#{uri}" => uri, "body" => body})
+        body
+      rescue
+        ''
+      end
+    end
+  end
+end
 
 class PokemonCardCom
-  def initialize(cache)
-    @cache = cache
+  def initialize(drop)
+    @cache = PageFolder.new(drop)
+    @drop = drop
   end
   
   def host
@@ -40,13 +89,13 @@ class PokemonCardCom
 
   def get(path)
     if @cache
-      @cache[host + path]
-    else
-      open(host + path)
+      it = @cache[host + path]
+      return it if it
     end
+    open(host + path)
   end
   
-  def card_summary(path)
+  def card_summary_1(path)
     doc = Hpricot(get(path))
     div = doc.at('div[@class="specData"]')
     return nil unless div
@@ -68,15 +117,21 @@ class PokemonCardCom
     spec[:illust] = doc.at('div[@class="illustData"]/p/img')['src']
     spec
   end
-end
-
-if __FILE__ == $0
-  name = ARGV.shift
-  there = PokemonCardCom.new({})
-  there.search_by_name(name) do |url, img|
-    p [url, img]
+  
+  def card_summary(path)
+    @cache.get("pcc_summary=#{path}") { |drop|
+      p [:summary, path]
+      spec = card_summary_1(path)
+      drop.write({"pcc_summary=#{path}" => path, 'value' => spec})
+      return spec
+    }['value']
   end
 end
 
+if __FILE__ == $0
+  require 'drop'
 
-
+  name = ARGV.shift
+  there = PokemonCardCom.new(Drop.new('drop_db'))
+  p there.card_summary(name)
+end

@@ -9,7 +9,10 @@ session.result.each_slice(30) do |ary|
         <li class="group"><%=h group %></li>
 <%    last_group = group
     end
-%>      <li><img src="<%= context.req_script_name.to_s + v[:thumb]%>" /><%=h v.inspect %></li><%
+    url = "http://www.pokemon-card.com" + v[:path]
+    base = context.req_script_name.to_s
+    img = base + (v[:illust].sub(/large/, 'thumb'))
+%>      <li><a href="<%= url %>"><img src="<%= img %>" /></a><%=h v.inspect %><p></p></li><%
   end
   break
 end
