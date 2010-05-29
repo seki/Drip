@@ -134,20 +134,17 @@ class Drop
     end
 
     def initialize(name)
-      if name
-        @file = File.open(name, 'a+b')
-      else
-        @file = nil
-      end
+      @name = name
+      @file = nil
     end
     
     def write(key, value)
-      return unless @file
-      name = @file.path
+      return unless @name
+      @file = File.open(@name, 'a+b') unless @file
       pos = @file.pos
       Marshal.dump([key, value], @file)
       @file.flush
-      Attic.new(name, pos, key, value)
+      Attic.new(@name, pos, key, value)
     end
   end
 
