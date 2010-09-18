@@ -29,11 +29,8 @@ class Drop
   end
   alias [] fetch
   
-  def prop(key, prop)
-    @pool[key][prop]
-  end
-  
-  def read_after(key, n=1, at_least=1)
+  def read(key, n=1, at_least=1)
+    key = time_to_key(Time.now) unless key
     ary = []
     n.times do
       wait(key) if at_least > ary.size
@@ -45,7 +42,8 @@ class Drop
     ary
   end
 
-  def read_prop_after(key, prop, n=1, at_least=1)
+  def read_prop(key, prop, n=1, at_least=1)
+    key = time_to_key(Time.now) unless key
     ary = []
     n.times do
       wait_prop(key, prop) if at_least > ary.size
@@ -57,7 +55,7 @@ class Drop
     ary
   end
 
-  def read_before(key, prop=nil)
+  def older(key, prop=nil)
     key = time_to_key(Time.now) unless key
     if prop
       it ,= @prop.upper_bound([prop, key - 1])
@@ -66,6 +64,14 @@ class Drop
     else
       k, v = @pool.upper_bound(key)
       k ? [k, v.to_hash] : nil
+    end
+  end
+
+  def newer(key, prop=nil)
+    if prop
+      read_prop(key, prop, 1, 0)[0]
+    else
+      read(key, 1, 0)[0]
     end
   end
 
