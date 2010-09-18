@@ -12,7 +12,10 @@ class BaseDiv < Tofu::Div
     super(session)
     @enter = EnterDiv.new(session)
     @list = ListDiv.new(session)
-    @drawer = DrawerDiv.new(session)
+    @drawers = []
+    @drawers << DrawerDiv.new(session, 'pokemon')
+    @drawers << DrawerDiv.new(session, 'trainer')
+    @drawers << DrawerDiv.new(session, 'energy')
   end
 end
 
@@ -37,14 +40,13 @@ end
 class DeckSession < Tofu::Session
   def initialize(bartender, hint=nil)
     super
-    @base = BaseDiv.new(self)
     @drop = $drop
     @pcc = PokemonCardCom.new(@drop)
     @result = []
     @text = ''
-    @drawer = Drawer.new('main', @pcc)
+    @base = BaseDiv.new(self)
   end
-  attr_reader :result, :text, :drawer
+  attr_reader :result, :text, :pcc
 
   def add(url)
     @folder[url]

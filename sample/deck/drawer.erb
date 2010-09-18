@@ -1,0 +1,15 @@
+<h3><a href="#"><%=h @drawer.name %></a></h3>
+<div>
+<%=form('add', {}, context)%>
+<input class='enter' type='text' size='30' name='path' value=''/>
+</form>
+<ul class='drawer'><%
+base = context.req_script_name.to_s
+@drawer.each do |card|
+  url = "http://www.pokemon-card.com" + card[:path]
+  img = base + (card[:illust].sub(/large/, 'thumb'))
+  %><a href="<%= url%>"><img src="<%= img%>" /></a><%
+end
+%>
+</ul>
+</div>

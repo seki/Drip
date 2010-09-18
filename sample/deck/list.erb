@@ -12,7 +12,7 @@ session.result.each_slice(30) do |ary|
     url = "http://www.pokemon-card.com" + v[:path]
     base = context.req_script_name.to_s
     img = base + (v[:illust].sub(/large/, 'thumb'))
-%>      <li><a href="<%= url %>"><img src="<%= img %>" /></a><%=h v.inspect %><p></p></li><%
+%>      <a href="<%= url %>"><img src="<%= img %>" /></a><%
   end
   break
 end
