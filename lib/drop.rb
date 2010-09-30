@@ -75,6 +75,24 @@ class Drop
     end
   end
 
+  def next_prop(cur)
+    it ,= @prop.lower_bound([cur, 0])
+    return nil unless it
+    it[0]
+  end
+
+  def props(prefix='', n=nil)
+    ary = []
+    cur = next_prop(prefix)
+    while cur && cur.index(prefix) == 0
+      str = cur.dup
+      str[prefix] = ''
+      ary << str
+      cur = next_prop(cur + "\0")
+    end
+    ary
+  end
+
   def time_to_key(time)
     time.tv_sec * 1000000 + time.tv_usec
   end
