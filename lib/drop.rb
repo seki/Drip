@@ -10,7 +10,7 @@ class Drop
 
   def initialize(dir)
     @pool = RBTree.new
-    @prop = RBTree.new
+    @tag = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
     make_key {|nop|}
@@ -42,24 +42,24 @@ class Drop
     ary
   end
 
-  def read_prop(key, prop, n=1, at_least=1)
+  def read_tag(key, tag, n=1, at_least=1)
     key = time_to_key(Time.now) unless key
     ary = []
     n.times do
-      wait_prop(key, prop) if at_least > ary.size
-      it ,= @prop.lower_bound([prop, key + 1])
-      return ary unless it && it[0] == prop
+      wait_tag(key, tag) if at_least > ary.size
+      it ,= @tag.lower_bound([tag, key + 1])
+      return ary unless it && it[0] == tag
       ary << it
       key = it[1]
     end
     ary
   end
 
-  def older(key, prop=nil)
+  def older(key, tag=nil)
     key = time_to_key(Time.now) unless key
-    if prop
-      it ,= @prop.upper_bound([prop, key - 1])
-      return nil unless it && it[0] == prop
+    if tag
+      it ,= @tag.upper_bound([tag, key - 1])
+      return nil unless it && it[0] == tag
       [it[1], fetch(it[1])]
     else
       k, v = @pool.upper_bound(key)
@@ -67,28 +67,28 @@ class Drop
     end
   end
 
-  def newer(key, prop=nil)
-    if prop
-      read_prop(key, prop, 1, 0)[0]
+  def newer(key, tag=nil)
+    if tag
+      read_tag(key, tag, 1, 0)[0]
     else
       read(key, 1, 0)[0]
     end
   end
 
-  def next_prop(cur)
-    it ,= @prop.lower_bound([cur, 0])
+  def next_tag(cur)
+    it ,= @tag.lower_bound([cur, 0])
     return nil unless it
     it[0]
   end
 
-  def props(prefix='', n=nil)
+  def tags(prefix='', n=nil)
     ary = []
-    cur = next_prop(prefix)
+    cur = next_tag(prefix)
     while cur && cur.index(prefix) == 0
       str = cur.dup
       str[prefix] = ''
       ary << str
-      cur = next_prop(cur + "\0")
+      cur = next_tag(cur + "\0")
     end
     ary
   end
@@ -124,8 +124,8 @@ class Drop
       @value
     end
     
-    def [](prop)
-      to_hash[prop]
+    def [](tag)
+      to_hash[tag]
     end
     
     def forget
@@ -193,7 +193,7 @@ class Drop
   def do_write(key, value)
     value.each do |k, v|
       next unless String === k
-      @prop[[k, key]] = key
+      @tag[[k, key]] = key
     end
     @pool[key] = value
   end
@@ -235,12 +235,12 @@ class Drop
     @event.read([:last, LessThan.new(key)])[1]
   end
 
-  def wait_prop(key, prop)
+  def wait_tag(key, tag)
     wait(key)
     okey = key + 1
     begin
-      it ,= @prop.lower_bound([prop, okey])
-      return if it && it[0] == prop
+      it ,= @tag.lower_bound([tag, okey])
+      return if it && it[0] == tag
     end while key = wait(key)
   end
 end
