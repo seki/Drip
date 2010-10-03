@@ -75,13 +75,18 @@ class Drop
     end
   end
 
-  def next_tag(cur)
-    it ,= @tag.lower_bound([cur, 0])
-    return nil unless it
-    it[0]
+  def next_tag(cur, n=1)
+    return _next_tag(cur) if n == 1
+    ary = []
+    while cur = _next_tag(cur)
+      ary << cur
+      n -= 1
+      break if n <= 0
+    end
+    ary
   end
 
-  def tags(prefix='', n=nil)
+  def tags(prefix='')
     ary = []
     cur = next_tag(prefix)
     while cur && cur.index(prefix) == 0
@@ -242,6 +247,13 @@ class Drop
       it ,= @tag.lower_bound([tag, okey])
       return if it && it[0] == tag
     end while key = wait(key)
+  end
+
+  def _next_tag(cur)
+    fwd = cur ? cur + "\0" : ''
+    it ,= @tag.lower_bound([fwd, 0])
+    return nil unless it
+    it[0]
   end
 end
 
