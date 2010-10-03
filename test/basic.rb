@@ -43,4 +43,43 @@ class BasicTest < Test::Unit::TestCase
     @drop.write(5 => :five, 'string' => :string)
     assert_equal(@drop.tags, ['string'])
   end
+  
+  def test_older_now_is_newest
+    @drop.write('age' => 1)
+    @drop.write('age' => 2)
+    @drop.write('age' => 3)
+    oid, value = @drop.older(nil)
+    assert_equal(value, 'age' => 3)
+    oid, value = @drop.older(@drop.time_to_key(Time.now))
+    assert_equal(value, 'age' => 3)
+
+    # newer(past)
+    assert_equal(@drop.newer(0)[1], 'age' => 1)
+    assert_equal(@drop.newer(0)[1], 'age' => 1)
+  end
+
+  def test_time_travel
+    @drop.write('age' => 1)
+    @drop.write('age' => 2)
+    @drop.write('age' => 3)
+    oid, value = @drop.older(nil)
+    assert_equal(value, 'age' => 3)
+    oid, value = @drop.older(oid)
+    assert_equal(value, 'age' => 2)
+    oid, value = @drop.older(oid)
+    assert_equal(value, 'age' => 1)
+    oid, value = @drop.older(oid)
+    assert_equal(oid, nil)
+    assert_equal(value, nil)
+    
+    oid, value = @drop.newer(0)
+    assert_equal(value, 'age' => 1)
+    oid, value = @drop.newer(oid)
+    assert_equal(value, 'age' => 2)
+    oid, value = @drop.newer(oid)
+    assert_equal(value, 'age' => 3)
+    oid, value = @drop.newer(oid)
+    assert_equal(oid, nil)
+    assert_equal(value, nil)
+  end
 end

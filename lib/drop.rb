@@ -62,7 +62,7 @@ class Drop
       return nil unless it && it[0] == tag
       [it[1], fetch(it[1])]
     else
-      k, v = @pool.upper_bound(key)
+      k, v = @pool.upper_bound(key - 1)
       k ? [k, v.to_hash] : nil
     end
   end
