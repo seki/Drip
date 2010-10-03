@@ -75,7 +75,7 @@ class Drop
     end
   end
 
-  def next_tag(cur, n=1)
+  def next_tag(cur=nil, n=1)
     return _next_tag(cur) if n == 1
     ary = []
     while cur = _next_tag(cur)
