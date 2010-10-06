@@ -1,0 +1,51 @@
+require 'scanf'
+
+class Pond
+  BLOCK_SIZE = 128
+  def initialize(fname)
+    @file = File.open(fname, "a+b")
+  end
+
+  def write(key, value)
+    buf = Marshal.dump(value)
+    header = "#{key} #{buf.size}"
+    @file.write(header)
+    @file.write("\0" * (BLOCK_SIZE - header.size))
+    @file.write(buf)
+    @file.write("\0" * (BLOCK_SIZE - (buf.size % BLOCK_SIZE)))
+    @file.flush
+  end
+
+  def each
+    @file.rewind
+    while true
+      begin
+        key, size = read_header
+        value = Marshal.load(read_body(size)) 
+        yield(key, value)
+      rescue EOFError
+        break
+      end
+    end
+  end
+
+  def read_header
+    header = @file.read(BLOCK_SIZE)
+    raise EOFError unless header
+    header.scanf("%d %d")
+  end
+  
+  def read_body(size)
+    @file.read(size + BLOCK_SIZE - (size % BLOCK_SIZE))
+  end
+end
+
+pond = Pond.new('pond.data')
+pond.write(1, ARGV.to_a)
+pond.write(2, "hello")
+pond.write(3, "again")
+
+pond.each do |k, v|
+  p [k, v]
+end
+
