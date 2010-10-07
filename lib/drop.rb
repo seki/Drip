@@ -107,6 +107,7 @@ class Drop
   end
   
   def _forget(key=nil)
+    return unless @store.forgettable?
     key = time_to_key(Time.now) unless key    
     @pool.each do |k, v|
       return if k > key
@@ -166,9 +167,13 @@ class Drop
       @name = name
       @file = nil
     end
+
+    def forgettable?
+      @name ? true : false
+    end
     
     def write(key, value)
-      return unless @name
+      return value unless @name
       @file = File.open(@name, 'a+b') unless @file
       pos = @file.pos
       Marshal.dump([key, value], @file)
