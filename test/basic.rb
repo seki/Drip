@@ -2,9 +2,18 @@ require 'test/unit'
 require '../lib/drop.rb'
 require 'fileutils'
 
-class BasicNilTest < Test::Unit::TestCase
+class BasicTest < Test::Unit::TestCase
+  def remove_drop(dir='test_db')
+    FileUtils.rm_r(dir, :force => true)
+  end
+
   def setup
-    @drop = Drop.new(nil)
+    remove_drop
+    @drop = Drop.new('test_db')
+  end
+
+  def teardown
+    remove_drop
   end
   
   def test_next_tag
@@ -72,33 +81,5 @@ class BasicNilTest < Test::Unit::TestCase
     oid, value = @drop.newer(oid)
     assert_equal(oid, nil)
     assert_equal(value, nil)
-    
-    latest ,= @drop.older(nil)
-    @drop._forget(latest)
-
-    oid, value = @drop.newer(0)
-    assert_equal(value, 'age' => 1)
-    oid, value = @drop.newer(oid)
-    assert_equal(value, 'age' => 2)
-    oid, value = @drop.newer(oid)
-    assert_equal(value, 'age' => 3)
-    oid, value = @drop.newer(oid)
-    assert_equal(oid, nil)
-    assert_equal(value, nil)
-  end
-end
-
-class BasicTest < BasicNilTest
-  def remove_drop(dir='test_db')
-    FileUtils.rm_r(dir, :force => true)
-  end
-
-  def setup
-    remove_drop
-    @drop = Drop.new('test_db')
-  end
-
-  def teardown
-    remove_drop
   end
 end
