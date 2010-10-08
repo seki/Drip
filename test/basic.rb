@@ -86,6 +86,23 @@ class BasicNilTest < Test::Unit::TestCase
     assert_equal(oid, nil)
     assert_equal(value, nil)
   end
+
+  def test_read
+    11.times do |n|
+      @drop.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
+    end
+    ary = @drop.read(0, 3)
+    assert_equal(ary.size, 3)
+    assert_equal(ary[0][1]['n'], 0)
+    assert_equal(ary[1][1]['n'], 1)
+    assert_equal(ary[2][1]['n'], 2)
+    ary = @drop.read(ary[2][0], 3)
+    assert_equal(ary.size, 3)
+    ary = @drop.read(ary[2][0], 3)
+    assert_equal(ary.size, 3)
+    ary = @drop.read(ary[2][0], 3)
+    assert_equal(ary.size, 2)
+  end
 end
 
 class BasicTest < BasicNilTest
