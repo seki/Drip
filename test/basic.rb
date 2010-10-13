@@ -103,6 +103,18 @@ class BasicNilTest < Test::Unit::TestCase
     ary = @drop.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
   end
+
+  def test_read_tag
+    3.times do |n|
+      @drop.write('n' => n)
+      @drop.write('n' => n, '2' => n * 2)
+      @drop.write('n' => n, '2' => n * 2, '3' => n * 3)
+    end
+    
+    ary = @drop.read_tag(0, 'n', 10)
+    assert_equal(ary.size, 9)
+    assert_equal(ary[0][1]['n'], 0)
+  end
 end
 
 class BasicTest < BasicNilTest

@@ -34,10 +34,9 @@ class Drop
     ary = []
     n.times do
       wait(key) if at_least > ary.size
-      it = @pool.lower_bound(key + 1)
-      return ary unless it
-      ary << [it[0], it[1].to_hash]
-      key = it[0]
+      key, value = @pool.lower_bound(key + 1)
+      return ary unless key
+      ary << [key, value.to_hash]
     end
     ary
   end
@@ -49,8 +48,8 @@ class Drop
       wait_tag(key, tag) if at_least > ary.size
       it ,= @tag.lower_bound([tag, key + 1])
       return ary unless it && it[0] == tag
-      ary << it
       key = it[1]
+      ary << [key, fetch(key)]
     end
     ary
   end
