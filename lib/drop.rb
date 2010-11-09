@@ -3,14 +3,11 @@ require 'drb/drb'
 require 'rinda/tuplespace'
 require 'enumerator'
 
-class Drop
-  include DRbUndumped
-
+class DropCore
   def inspect; to_s; end
 
   def initialize(dir)
     @pool = RBTree.new
-    @tag = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
     make_key {|nop|}
@@ -41,60 +38,14 @@ class Drop
     ary
   end
 
-  def read_tag(key, tag, n=1, at_least=1)
+  def older(key)
     key = time_to_key(Time.now) unless key
-    ary = []
-    n.times do
-      wait_tag(key, tag) if at_least > ary.size
-      it ,= @tag.lower_bound([tag, key + 1])
-      return ary unless it && it[0] == tag
-      key = it[1]
-      ary << [key, fetch(key)]
-    end
-    ary
+    k, v = @pool.upper_bound(key - 1)
+    k ? [k, v.to_hash] : nil
   end
 
-  def older(key, tag=nil)
-    key = time_to_key(Time.now) unless key
-    if tag
-      it ,= @tag.upper_bound([tag, key - 1])
-      return nil unless it && it[0] == tag
-      [it[1], fetch(it[1])]
-    else
-      k, v = @pool.upper_bound(key - 1)
-      k ? [k, v.to_hash] : nil
-    end
-  end
-
-  def newer(key, tag=nil)
-    if tag
-      read_tag(key, tag, 1, 0)[0]
-    else
-      read(key, 1, 0)[0]
-    end
-  end
-
-  def next_tag(cur=nil, n=1)
-    return _next_tag(cur) if n == 1
-    ary = []
-    while cur = _next_tag(cur)
-      ary << cur
-      n -= 1
-      break if n <= 0
-    end
-    ary
-  end
-
-  def tags(prefix='')
-    ary = []
-    cur = next_tag(prefix)
-    while cur && cur.index(prefix) == 0
-      str = cur.dup
-      str[prefix] = ''
-      ary << str
-      cur = next_tag(cur + "\0")
-    end
-    ary
+  def newer(key)
+    read(key, 1, 0)[0]
   end
 
   def time_to_key(time)
@@ -200,10 +151,6 @@ class Drop
   end
 
   def do_write(key, value)
-    value.each do |k, v|
-      next unless String === k
-      @tag[[k, key]] = key
-    end
     @pool[key] = value
   end
 
@@ -242,6 +189,73 @@ class Drop
 
   def wait(key)
     @event.read([:last, LessThan.new(key)])[1]
+  end
+end
+
+class Drop < DropCore
+  include DRbUndumped
+
+  def initialize(dir)
+    @tag = RBTree.new
+    super(dir)
+  end
+
+  def read_tag(key, tag, n=1, at_least=1)
+    key = time_to_key(Time.now) unless key
+    ary = []
+    n.times do
+      wait_tag(key, tag) if at_least > ary.size
+      it ,= @tag.lower_bound([tag, key + 1])
+      return ary unless it && it[0] == tag
+      key = it[1]
+      ary << [key, fetch(key)]
+    end
+    ary
+  end
+
+  def older(key, tag=nil)
+    key = time_to_key(Time.now) unless key
+    return super(key) unless tag
+
+    it ,= @tag.upper_bound([tag, key - 1])
+    return nil unless it && it[0] == tag
+    [it[1], fetch(it[1])]
+  end
+
+  def newer(key, tag=nil)
+    return super(key) unless tag
+    read_tag(key, tag, 1, 0)[0]
+  end
+  def next_tag(cur=nil, n=1)
+    return _next_tag(cur) if n == 1
+    ary = []
+    while cur = _next_tag(cur)
+      ary << cur
+      n -= 1
+      break if n <= 0
+    end
+    ary
+  end
+
+  def tags(prefix='')
+    ary = []
+    cur = next_tag(prefix)
+    while cur && cur.index(prefix) == 0
+      str = cur.dup
+      str[prefix] = ''
+      ary << str
+      cur = next_tag(cur + "\0")
+    end
+    ary
+  end
+
+  private
+  def do_write(key, value)
+    value.each do |k, v|
+      next unless String === k
+      @tag[[k, key]] = key
+    end
+    super(key, value)
   end
 
   def wait_tag(key, tag)
