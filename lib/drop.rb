@@ -4,6 +4,7 @@ require 'rinda/tuplespace'
 require 'enumerator'
 
 class DropCore
+  include DRbUndumped
   def inspect; to_s; end
 
   def initialize(dir)
@@ -184,8 +185,6 @@ class DropCore
 end
 
 class Drop < DropCore
-  include DRbUndumped
-
   def initialize(dir)
     @tag = RBTree.new
     super(dir)
