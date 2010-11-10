@@ -67,36 +67,27 @@ class DropCore
   end
 
   private
-  class Attic
-    def initialize(fname, fpos, key, value)
-      @fname = fname
-      @fpos = fpos
-      @key = key
-      @value = value
-    end
-    
-    def to_hash
-      retrieve unless @value
-      @value
-    end
-    
-    def [](tag)
-      to_hash[tag]
-    end
-    
-    def forget
-      @value = nil
-    end
-    
-    def retrieve
-      File.open(@fname) do |fp|
-        fp.seek(@fpos)
-        @key, @value = Marshal.load(fp)
+  class SimpleStore
+    Attic = Struct.new(:fname, :fpos, :value)
+    class Attic
+      def to_hash
+        retrieve unless value
+        value
+      end
+      
+      def forget
+        self.value = nil
+      end
+      
+      def retrieve
+        File.open(fname) do |fp|
+          fp.seek(fpos)
+          kv = Marshal.load(fp)
+          self.value = kv[1]
+        end
       end
     end
-  end
 
-  class SimpleStore
     def self.reader(name)
       self.to_enum(:each, name)
     end
@@ -106,7 +97,7 @@ class DropCore
       while true
         pos = file.pos
         key, value = Marshal.load(file)
-        yield(name, pos, key, value)
+        yield(key, value, Attic.new(name, pos, value))
       end
     rescue EOFError
     ensure
@@ -128,7 +119,7 @@ class DropCore
       pos = @file.pos
       Marshal.dump([key, value], @file)
       @file.flush
-      Attic.new(@name, pos, key, value)
+      Attic.new(@name, pos, value)
     end
   end
 
@@ -156,9 +147,9 @@ class DropCore
 
   def restore(store)
     _, last = @event.take([:last, nil])
-    store.each do |name, pos, k, v|
+    store.each do |k, v, attic|
       do_write(k, v)
-      @pool[k] = Attic.new(name, pos, k, v)
+      @pool[k] = attic
       @pool[k].forget
     end
     last ,= @pool.last
