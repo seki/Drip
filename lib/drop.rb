@@ -3,19 +3,20 @@ require 'drb/drb'
 require 'rinda/tuplespace'
 require 'enumerator'
 
-class DropCore
+class Drop
   include DRbUndumped
   def inspect; to_s; end
 
   def initialize(dir)
     @pool = RBTree.new
+    @tag = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
     make_key {|nop|}
     prepare_store(dir)
   end
 
-  def write(value)
+  def write(*value)
     make_key do |key|
       do_write(key, value)
       @pool[key] = @store.write(key, value)
@@ -23,7 +24,7 @@ class DropCore
   end
 
   def fetch(key)
-    @pool[key].to_hash
+    @pool[key].to_a[0]
   end
   alias [] fetch
   
@@ -34,19 +35,40 @@ class DropCore
       wait(key) if at_least > ary.size
       key, value = @pool.lower_bound(key + 1)
       return ary unless key
-      ary << [key, value.to_hash]
+      ary << [key, value.to_a[0]]
     end
     ary
   end
 
-  def older(key)
+  def read_tag(key, tag, n=1, at_least=1)
     key = time_to_key(Time.now) unless key
-    k, v = @pool.upper_bound(key - 1)
-    k ? [k, v.to_hash] : nil
+    ary = []
+    n.times do
+      wait_tag(key, tag) if at_least > ary.size
+      it ,= @tag.lower_bound([tag, key + 1])
+      return ary unless it && it[0] == tag
+      key = it[1]
+      ary << [key, fetch(key)]
+    end
+    ary
   end
 
-  def newer(key)
-    read(key, 1, 0)[0]
+  def older(key, tag=nil)
+    key = time_to_key(Time.now) unless key
+    unless tag
+      k, v = @pool.upper_bound(key - 1)
+      return k ? [k, v.to_a[0]] : nil
+    end
+
+    it ,= @tag.upper_bound([tag, key - 1])
+    return nil unless it && it[0] == tag
+    [it[1], fetch(it[1])]
+  end
+
+  def newer(key, tag=nil)
+    return read(key, 1, 0)[0] unless tag
+    return super(key) unless tag
+    read_tag(key, tag, 1, 0)[0]
   end
 
   def time_to_key(time)
@@ -67,11 +89,34 @@ class DropCore
     nil
   end
 
+  def next_tag(cur=nil, n=1)
+    return _next_tag(cur) if n == 1
+    ary = []
+    while cur = _next_tag(cur)
+      ary << cur
+      n -= 1
+      break if n <= 0
+    end
+    ary
+  end
+
+  def tags(prefix='')
+    ary = []
+    cur = next_tag(prefix)
+    while cur && cur.index(prefix) == 0
+      str = cur.dup
+      str[prefix] = ''
+      ary << str
+      cur = next_tag(cur + "\0")
+    end
+    ary
+  end
+
   private
   class SimpleStore
     Attic = Struct.new(:fname, :fpos, :value)
     class Attic
-      def to_hash
+      def to_a
         retrieve unless value
         value
       end
@@ -143,6 +188,11 @@ class DropCore
   end
 
   def do_write(key, value)
+    (1...value.size).each do |n|
+      k = value[n]
+      next unless String === k
+      @tag[[k, key]] = key
+    end
     @pool[key] = value
   end
 
@@ -182,72 +232,8 @@ class DropCore
   def wait(key)
     @event.read([:last, LessThan.new(key)])[1]
   end
-end
-
-class Drop < DropCore
-  def initialize(dir)
-    @tag = RBTree.new
-    super(dir)
-  end
-
-  def read_tag(key, tag, n=1, at_least=1)
-    key = time_to_key(Time.now) unless key
-    ary = []
-    n.times do
-      wait_tag(key, tag) if at_least > ary.size
-      it ,= @tag.lower_bound([tag, key + 1])
-      return ary unless it && it[0] == tag
-      key = it[1]
-      ary << [key, fetch(key)]
-    end
-    ary
-  end
-
-  def older(key, tag=nil)
-    key = time_to_key(Time.now) unless key
-    return super(key) unless tag
-
-    it ,= @tag.upper_bound([tag, key - 1])
-    return nil unless it && it[0] == tag
-    [it[1], fetch(it[1])]
-  end
-
-  def newer(key, tag=nil)
-    return super(key) unless tag
-    read_tag(key, tag, 1, 0)[0]
-  end
-  def next_tag(cur=nil, n=1)
-    return _next_tag(cur) if n == 1
-    ary = []
-    while cur = _next_tag(cur)
-      ary << cur
-      n -= 1
-      break if n <= 0
-    end
-    ary
-  end
-
-  def tags(prefix='')
-    ary = []
-    cur = next_tag(prefix)
-    while cur && cur.index(prefix) == 0
-      str = cur.dup
-      str[prefix] = ''
-      ary << str
-      cur = next_tag(cur + "\0")
-    end
-    ary
-  end
 
   private
-  def do_write(key, value)
-    value.each do |k, v|
-      next unless String === k
-      @tag[[k, key]] = key
-    end
-    super(key, value)
-  end
-
   def wait_tag(key, tag)
     wait(key)
     okey = key + 1

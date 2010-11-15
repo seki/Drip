@@ -4,7 +4,7 @@ require 'fileutils'
 
 class TestDropCore < Test::Unit::TestCase
   def setup
-    @drop = DropCore.new(nil)
+    @drop = Drop.new(nil)
   end
 
   def test_time_travel
@@ -70,7 +70,8 @@ class TestDrop < TestDropCore
   
   def test_next_tag
     11.times do |n|
-      @drop.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
+      value = {"n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n}
+      @drop.write(value, *value.keys)
     end
     assert_equal(@drop.next_tag(), 'n')
     assert_equal(@drop.next_tag(nil), 'n')
@@ -85,14 +86,14 @@ class TestDrop < TestDropCore
   end
   
   def test_symbol_is_not_tag
-    @drop.write(:symbol => :symbol, 'string' => :string)
+    @drop.write({:symbol => :symbol, 'string' => :string}, :symbol, 'string')
     assert_equal(@drop.tags, ['string'])
     oid, value = @drop.older(@drop.time_to_key(Time.now))
     assert_equal(value, {:symbol => :symbol, 'string' => :string})
   end
 
   def test_number_is_not_tag
-    @drop.write(5 => :five, 'string' => :string)
+    @drop.write({5 => :five, 'string' => :string}, 5, 'string')
     assert_equal(@drop.tags, ['string'])
   end
   
@@ -112,9 +113,9 @@ class TestDrop < TestDropCore
 
   def test_read_tag
     3.times do |n|
-      @drop.write('n' => n)
-      @drop.write('n' => n, '2' => n * 2)
-      @drop.write('n' => n, '2' => n * 2, '3' => n * 3)
+      @drop.write({'n' => n}, 'n')
+      @drop.write({'n' => n, '2' => n * 2}, 'n', '2')
+      @drop.write({'n' => n, '2' => n * 2, '3' => n * 3}, 'n', '2', '3')
     end
     
     ary = @drop.read_tag(0, 'n', 10)
