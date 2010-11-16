@@ -2,7 +2,7 @@ require 'test/unit'
 require '../lib/drop.rb'
 require 'fileutils'
 
-class TestDropCore < Test::Unit::TestCase
+class TestDrop < Test::Unit::TestCase
   def setup
     @drop = Drop.new(nil)
   end
@@ -61,13 +61,7 @@ class TestDropCore < Test::Unit::TestCase
     ary = @drop.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
   end
-end
 
-class TestDrop < TestDropCore
-  def setup
-    @drop = Drop.new(nil)
-  end
-  
   def test_next_tag
     11.times do |n|
       value = {"n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n}

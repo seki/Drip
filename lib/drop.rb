@@ -233,7 +233,6 @@ class Drop
     @event.read([:last, LessThan.new(key)])[1]
   end
 
-  private
   def wait_tag(key, tag)
     wait(key)
     okey = key + 1
@@ -252,7 +251,34 @@ class Drop
 end
 
 if __FILE__ == $0
-  drop = Drop.new('my_log')
-  DRb.start_service('druby://localhost:54545', drop)
+  require 'fileutils'
+
+  unless $DEBUG
+    exit!(0) if fork
+    Process.setsid
+    exit!(0) if fork
+  end
+  
+  dir = File.expand_path('~/.drop')
+  uri = 'drbunix:' + File.join(dir, 'port')
+  ro = DRbObject.new_with_uri(uri)
+  begin
+    ro.older(nil) #ping
+    exit
+  rescue
+  end
+
+  FileUtils.mkdir_p(dir)
+  FileUtils.cd(dir)
+  
+  drop = Drop.new('drop')
+  DRb.start_service(uri, drop)
+  File.open('pid', 'w') {|fp| fp.puts($$)}
+  
+  unless $DEBUG
+    STDIN.reopen('/dev/null')
+    STDOUT.reopen('/dev/null', 'w')
+    STDERR.reopen('/dev/null', 'w')
+  end
   DRb.thread.join
 end
