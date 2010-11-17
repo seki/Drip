@@ -60,6 +60,11 @@ class TestDrop < Test::Unit::TestCase
     assert_equal(ary.size, 3)
     ary = @drop.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
+
+    oid = @drop.write('latest', 'tag1', 'tag2')
+    oid, value, *tags = @drop.newer(oid - 1)
+    assert_equal(value, 'latest')
+    assert_equal(tags, ['tag1', 'tag2'])
   end
 
   def test_next_tag
@@ -115,6 +120,8 @@ class TestDrop < Test::Unit::TestCase
     ary = @drop.read_tag(0, 'n', 10)
     assert_equal(ary.size, 9)
     assert_equal(ary[0][1]['n'], 0)
+    assert_equal(ary[0][2], 'n')
+    assert_equal(ary[2][4], '3')
   end
 end
 

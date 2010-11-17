@@ -24,7 +24,7 @@ class Drop
   end
 
   def fetch(key)
-    @pool[key].to_a[0]
+    @pool[key].to_a
   end
   alias [] fetch
   
@@ -35,7 +35,7 @@ class Drop
       wait(key) if at_least > ary.size
       key, value = @pool.lower_bound(key + 1)
       return ary unless key
-      ary << [key, value.to_a[0]]
+      ary << [key] + value.to_a
     end
     ary
   end
@@ -48,7 +48,7 @@ class Drop
       it ,= @tag.lower_bound([tag, key + 1])
       return ary unless it && it[0] == tag
       key = it[1]
-      ary << [key, fetch(key)]
+      ary << [key] + fetch(key)
     end
     ary
   end
@@ -57,12 +57,12 @@ class Drop
     key = time_to_key(Time.now) unless key
     unless tag
       k, v = @pool.upper_bound(key - 1)
-      return k ? [k, v.to_a[0]] : nil
+      return k ? [k] + v.to_a : nil
     end
 
     it ,= @tag.upper_bound([tag, key - 1])
     return nil unless it && it[0] == tag
-    [it[1], fetch(it[1])]
+    [it[1]] + fetch(it[1])
   end
 
   def newer(key, tag=nil)
