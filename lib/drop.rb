@@ -53,6 +53,18 @@ class Drop
     ary
   end
 
+  def head(n, tag=nil)
+    ary = []
+    key = nil
+    while it = older(key, tag)
+      break if n <= 0
+      ary.unshift(it)
+      key = it[0]
+      n -= 1
+    end
+    ary
+  end
+
   def older(key, tag=nil)
     key = time_to_key(Time.now) unless key
     unless tag
@@ -67,7 +79,6 @@ class Drop
 
   def newer(key, tag=nil)
     return read(key, 1, 0)[0] unless tag
-    return super(key) unless tag
     read_tag(key, tag, 1, 0)[0]
   end
 

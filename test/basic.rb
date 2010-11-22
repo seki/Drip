@@ -123,6 +123,17 @@ class TestDrop < Test::Unit::TestCase
     assert_equal(ary[0][2], 'n')
     assert_equal(ary[2][4], '3')
   end
+
+  def test_head
+    10.times do |n|
+      @drop.write(n)
+    end
+    
+    ary = @drop.head(3)
+    assert_equal(ary.size, 3)
+    assert_equal(ary[0][1], 7)
+    assert_equal(ary[2][1], 9)
+  end
 end
 
 class TestDropUsingStorage < TestDrop
