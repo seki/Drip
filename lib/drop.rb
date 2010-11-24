@@ -10,7 +10,7 @@ class Drop
   def initialize(dir)
     @pool = RBTree.new
     @tag = RBTree.new
-    @event = Rinda::TupleSpace.new
+    @event = Rinda::TupleSpace.new(5)
     @event.write([:last, 0])
     prepare_store(dir)
   end
@@ -26,12 +26,28 @@ class Drop
     @pool[key].to_a
   end
   alias [] fetch
+
+  def make_renewer(timeout)
+    case timeout
+    when 0
+      return 0
+    when Numeric
+      return Renewer.new(timeout)
+    else
+      nil
+    end
+  end
   
-  def read(key, n=1, at_least=1)
+  def read(key, n=1, at_least=1, timeout=0)
+    renewer = make_renewer(timeout)
     key = time_to_key(Time.now) unless key
     ary = []
     n.times do
-      wait(key) if at_least > ary.size
+      begin
+        wait(key, renewer) if at_least > ary.size
+      rescue Rinda::RequestExpiredError
+        return ary
+      end
       key, value = @pool.lower_bound(key + 1)
       return ary unless key
       ary << [key] + value.to_a
@@ -39,11 +55,16 @@ class Drop
     ary
   end
 
-  def read_tag(key, tag, n=1, at_least=1)
+  def read_tag(key, tag, n=1, at_least=1, timeout=0)
+    renewer = make_renewer(timeout)
     key = time_to_key(Time.now) unless key
     ary = []
     n.times do
-      wait_tag(key, tag) if at_least > ary.size
+      begin
+        wait_tag(key, tag, renewer) if at_least > ary.size
+      rescue Rinda::RequestExpiredError
+        return ary
+      end
       it ,= @tag.lower_bound([tag, key + 1])
       return ary unless it && it[0] == tag
       key = it[1]
@@ -239,17 +260,17 @@ class Drop
     end
   end
 
-  def wait(key)
-    @event.read([:last, LessThan.new(key)])[1]
+  def wait(key, renewer)
+    @event.read([:last, LessThan.new(key)], renewer)[1]
   end
 
-  def wait_tag(key, tag)
-    wait(key)
+  def wait_tag(key, tag, renewer)
+    wait(key, renewer)
     okey = key + 1
     begin
       it ,= @tag.lower_bound([tag, okey])
       return if it && it[0] == tag
-    end while key = wait(key)
+    end while key = wait(key, renewer)
   end
 
   def _next_tag(cur)
@@ -257,6 +278,16 @@ class Drop
     it ,= @tag.lower_bound([fwd, 0])
     return nil unless it
     it[0]
+  end
+
+  class Renewer
+    def initialize(timeout)
+      @at = Time.now + timeout
+    end
+    
+    def renew
+      @at - Time.now
+    end
   end
 end
 
