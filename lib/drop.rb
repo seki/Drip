@@ -12,7 +12,6 @@ class Drop
     @tag = RBTree.new
     @event = Rinda::TupleSpace.new
     @event.write([:last, 0])
-    make_key {|nop|}
     prepare_store(dir)
   end
 
