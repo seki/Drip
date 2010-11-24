@@ -38,7 +38,7 @@ class Drop
     end
   end
   
-  def read(key, n=1, at_least=1, timeout=0)
+  def read(key, n=1, at_least=1, timeout=nil)
     renewer = make_renewer(timeout)
     key = time_to_key(Time.now) unless key
     ary = []
@@ -55,7 +55,7 @@ class Drop
     ary
   end
 
-  def read_tag(key, tag, n=1, at_least=1, timeout=0)
+  def read_tag(key, tag, n=1, at_least=1, timeout=nil)
     renewer = make_renewer(timeout)
     key = time_to_key(Time.now) unless key
     ary = []
