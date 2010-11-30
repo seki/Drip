@@ -73,7 +73,7 @@ class Drop
     ary
   end
 
-  def head(n, tag=nil)
+  def head(n=1, tag=nil)
     ary = []
     key = nil
     while it = older(key, tag)
