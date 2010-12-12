@@ -218,11 +218,21 @@ class Drop
     @store = SimpleStore.new(File.join(dir, name))
   end
 
+  def shared_text(str)
+    key, value = @tag.lower_bound([str, 0])
+    if key && key[0] == str
+      key[0]
+    else
+      str
+    end
+  end
+
   def do_write(key, value)
     (1...value.size).each do |n|
       k = value[n]
       next unless String === k
-      @tag[[k, key]] = key
+      tag = shared_text(k)
+      @tag[[tag, key]] = key
     end
     @pool[key] = value
   end
