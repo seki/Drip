@@ -304,6 +304,16 @@ end
 if __FILE__ == $0
   require 'fileutils'
 
+  class Drop
+    def quit
+      Thread.new do
+        make_key do |key|
+          exti(0)
+        end
+      end
+    end
+  end
+
   unless $DEBUG
     exit!(0) if fork
     Process.setsid
