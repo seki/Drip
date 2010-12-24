@@ -1,68 +1,68 @@
 require 'test/unit'
-require '../lib/drop.rb'
+require '../lib/drip.rb'
 require 'fileutils'
 
-class TestDrop < Test::Unit::TestCase
+class TestDrip < Test::Unit::TestCase
   def setup
-    @drop = Drop.new(nil)
+    @drip = Drip.new(nil)
   end
 
   def test_time_travel
-    @drop.write('age' => 1)
-    @drop.write('age' => 2)
-    @drop.write('age' => 3)
-    oid, value = @drop.older(nil)
+    @drip.write('age' => 1)
+    @drip.write('age' => 2)
+    @drip.write('age' => 3)
+    oid, value = @drip.older(nil)
     assert_equal(value, 'age' => 3)
-    oid, value = @drop.older(oid)
+    oid, value = @drip.older(oid)
     assert_equal(value, 'age' => 2)
-    oid, value = @drop.older(oid)
+    oid, value = @drip.older(oid)
     assert_equal(value, 'age' => 1)
-    oid, value = @drop.older(oid)
+    oid, value = @drip.older(oid)
     assert_equal(oid, nil)
     assert_equal(value, nil)
     
-    oid, value = @drop.newer(0)
+    oid, value = @drip.newer(0)
     assert_equal(value, 'age' => 1)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(value, 'age' => 2)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(value, 'age' => 3)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(oid, nil)
     assert_equal(value, nil)
     
-    latest ,= @drop.older(nil)
-    @drop._forget(latest)
+    latest ,= @drip.older(nil)
+    @drip._forget(latest)
 
-    oid, value = @drop.newer(0)
+    oid, value = @drip.newer(0)
     assert_equal(value, 'age' => 1)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(value, 'age' => 2)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(value, 'age' => 3)
-    oid, value = @drop.newer(oid)
+    oid, value = @drip.newer(oid)
     assert_equal(oid, nil)
     assert_equal(value, nil)
   end
 
   def test_read
     11.times do |n|
-      @drop.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
+      @drip.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
     end
-    ary = @drop.read(0, 3)
+    ary = @drip.read(0, 3)
     assert_equal(ary.size, 3)
     assert_equal(ary[0][1]['n'], 0)
     assert_equal(ary[1][1]['n'], 1)
     assert_equal(ary[2][1]['n'], 2)
-    ary = @drop.read(ary[2][0], 3)
+    ary = @drip.read(ary[2][0], 3)
     assert_equal(ary.size, 3)
-    ary = @drop.read(ary[2][0], 3)
+    ary = @drip.read(ary[2][0], 3)
     assert_equal(ary.size, 3)
-    ary = @drop.read(ary[2][0], 3)
+    ary = @drip.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
 
-    oid = @drop.write('latest', 'tag1', 'tag2')
-    oid, value, *tags = @drop.newer(oid - 1)
+    oid = @drip.write('latest', 'tag1', 'tag2')
+    oid, value, *tags = @drip.newer(oid - 1)
     assert_equal(value, 'latest')
     assert_equal(tags, ['tag1', 'tag2'])
   end
@@ -70,54 +70,54 @@ class TestDrop < Test::Unit::TestCase
   def test_next_tag
     11.times do |n|
       value = {"n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n}
-      @drop.write(value, *value.keys)
+      @drip.write(value, *value.keys)
     end
-    assert_equal(@drop.next_tag(), 'n')
-    assert_equal(@drop.next_tag(nil), 'n')
-    assert_equal(@drop.next_tag('n='), 'n=0')
-    assert_equal(@drop.next_tag('n=0'), 'n=1')
-    assert_equal(@drop.next_tag('n=0', 3), ['n=1', 'n=10', 'n=2'])
-    assert_equal(@drop.tags, ["n",
+    assert_equal(@drip.next_tag(), 'n')
+    assert_equal(@drip.next_tag(nil), 'n')
+    assert_equal(@drip.next_tag('n='), 'n=0')
+    assert_equal(@drip.next_tag('n=0'), 'n=1')
+    assert_equal(@drip.next_tag('n=0', 3), ['n=1', 'n=10', 'n=2'])
+    assert_equal(@drip.tags, ["n",
                               "n=0", "n=1", "n=10", "n=2", "n=3",
                               "n=4", "n=5", "n=6", "n=7", "n=8", "n=9"])
     # tags with prefix
-    assert_equal(@drop.tags("n="), %w(0 1 10 2 3 4 5 6 7 8 9))
+    assert_equal(@drip.tags("n="), %w(0 1 10 2 3 4 5 6 7 8 9))
   end
   
   def test_symbol_is_not_tag
-    @drop.write({:symbol => :symbol, 'string' => :string}, :symbol, 'string')
-    assert_equal(@drop.tags, ['string'])
-    oid, value = @drop.older(@drop.time_to_key(Time.now))
+    @drip.write({:symbol => :symbol, 'string' => :string}, :symbol, 'string')
+    assert_equal(@drip.tags, ['string'])
+    oid, value = @drip.older(@drip.time_to_key(Time.now))
     assert_equal(value, {:symbol => :symbol, 'string' => :string})
   end
 
   def test_number_is_not_tag
-    @drop.write({5 => :five, 'string' => :string}, 5, 'string')
-    assert_equal(@drop.tags, ['string'])
+    @drip.write({5 => :five, 'string' => :string}, 5, 'string')
+    assert_equal(@drip.tags, ['string'])
   end
   
   def test_older_now_is_newest
-    @drop.write('age' => 1)
-    @drop.write('age' => 2)
-    @drop.write('age' => 3)
-    oid, value = @drop.older(nil)
+    @drip.write('age' => 1)
+    @drip.write('age' => 2)
+    @drip.write('age' => 3)
+    oid, value = @drip.older(nil)
     assert_equal(value, 'age' => 3)
-    oid, value = @drop.older(@drop.time_to_key(Time.now))
+    oid, value = @drip.older(@drip.time_to_key(Time.now))
     assert_equal(value, 'age' => 3)
 
     # newer(past)
-    assert_equal(@drop.newer(0)[1], 'age' => 1)
-    assert_equal(@drop.newer(0)[1], 'age' => 1)
+    assert_equal(@drip.newer(0)[1], 'age' => 1)
+    assert_equal(@drip.newer(0)[1], 'age' => 1)
   end
 
   def test_read_tag
     3.times do |n|
-      @drop.write({'n' => n}, 'n')
-      @drop.write({'n' => n, '2' => n * 2}, 'n', '2')
-      @drop.write({'n' => n, '2' => n * 2, '3' => n * 3}, 'n', '2', '3')
+      @drip.write({'n' => n}, 'n')
+      @drip.write({'n' => n, '2' => n * 2}, 'n', '2')
+      @drip.write({'n' => n, '2' => n * 2, '3' => n * 3}, 'n', '2', '3')
     end
     
-    ary = @drop.read_tag(0, 'n', 10)
+    ary = @drip.read_tag(0, 'n', 10)
     assert_equal(ary.size, 9)
     assert_equal(ary[0][1]['n'], 0)
     assert_equal(ary[0][2], 'n')
@@ -126,46 +126,46 @@ class TestDrop < Test::Unit::TestCase
 
   def test_head
     10.times do |n|
-      @drop.write(n)
+      @drip.write(n)
     end
     
-    ary = @drop.head(3)
+    ary = @drip.head(3)
     assert_equal(ary.size, 3)
     assert_equal(ary[0][1], 7)
     assert_equal(ary[2][1], 9)
   end
 end
 
-class TestDropUsingStorage < TestDrop
-  def remove_drop(dir='test_db')
+class TestDripUsingStorage < TestDrip
+  def remove_drip(dir='test_db')
     FileUtils.rm_r(dir, :force => true)
   end
 
   def setup
-    remove_drop
-    @drop = Drop.new('test_db')
+    remove_drip
+    @drip = Drip.new('test_db')
   end
 
   def teardown
-    remove_drop
+    remove_drip
   end
   
   def test_twice
     11.times do |n|
-      @drop.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
+      @drip.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
     end
 
-    drop = Drop.new('test_db')
-    ary = drop.read(0, 3)
+    drip = Drip.new('test_db')
+    ary = drip.read(0, 3)
     assert_equal(ary.size, 3)
     assert_equal(ary[0][1]['n'], 0)
     assert_equal(ary[1][1]['n'], 1)
     assert_equal(ary[2][1]['n'], 2)
-    ary = drop.read(ary[2][0], 3)
+    ary = drip.read(ary[2][0], 3)
     assert_equal(ary.size, 3)
-    ary = drop.read(ary[2][0], 3)
+    ary = drip.read(ary[2][0], 3)
     assert_equal(ary.size, 3)
-    ary = drop.read(ary[2][0], 3)
+    ary = drip.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
   end
 end

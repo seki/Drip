@@ -3,7 +3,7 @@ require 'drb/drb'
 require 'rinda/tuplespace'
 require 'enumerator'
 
-class Drop
+class Drip
   include DRbUndumped
   def inspect; to_s; end
 
@@ -304,7 +304,7 @@ end
 if __FILE__ == $0
   require 'fileutils'
 
-  class Drop
+  class Drip
     def quit
       Thread.new do
         make_key do |key|
@@ -320,7 +320,7 @@ if __FILE__ == $0
     exit!(0) if fork
   end
   
-  dir = File.expand_path('~/.drop')
+  dir = File.expand_path('~/.drip')
   uri = 'drbunix:' + File.join(dir, 'port')
   ro = DRbObject.new_with_uri(uri)
   begin
@@ -332,8 +332,8 @@ if __FILE__ == $0
   FileUtils.mkdir_p(dir)
   FileUtils.cd(dir)
   
-  drop = Drop.new('drop')
-  DRb.start_service(uri, drop)
+  drip = Drip.new('drip')
+  DRb.start_service(uri, drip)
   File.open('pid', 'w') {|fp| fp.puts($$)}
   
   unless $DEBUG
