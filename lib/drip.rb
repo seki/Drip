@@ -260,18 +260,9 @@ class Drip
     @event.write([:last, key])
   end
   
-  class LessThan
-    def initialize(key)
-      @key = key
-    end
-    
-    def ===(other)
-      (@key <=> other) < 0
-    end
-  end
-
+  INF = 1.0/0.0
   def wait(key, renewer)
-    @event.read([:last, LessThan.new(key)], renewer)[1]
+    @event.read([:last, key+1 .. INF], renewer)[1]
   end
 
   def wait_tag(key, tag, renewer)
