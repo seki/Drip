@@ -299,7 +299,7 @@ if __FILE__ == $0
     def quit
       Thread.new do
         make_key do |key|
-          exti(0)
+          exit(0)
         end
       end
     end
