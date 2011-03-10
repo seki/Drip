@@ -22,6 +22,13 @@ class Drip
     end
   end
 
+  def write_after(at, *value)
+    make_key_after(at) do |key|
+      do_write(key, value)
+      @pool[key] = @store.write(key, value)
+    end
+  end
+
   def fetch(key)
     @pool[key].to_a
   end
@@ -249,15 +256,33 @@ class Drip
     @event.write([:last, last || 0])
   end
 
-  def make_key
+  def make_key0
+    synchronize do |last|
+      begin
+        key = time_to_key(Time.now)
+      end while last == key
+      yield(key)
+      key
+    end
+  end
+  
+  def make_key(&blk)
+    make_key_after(Time.now, &blk)
+  end
+  
+  def make_key_after(at)
+    synchronize do |last|
+      key = [time_to_key(at), last + 1].max
+      yield(key)
+      key
+    end
+  end
+  
+  def synchronize
     _, last = @event.take([:last, nil])
-    begin
-      key = time_to_key(Time.now)
-    end while last == key
-    yield(key)
-    key
+    last = yield(last)
   ensure
-    @event.write([:last, key])
+    @event.write([:last, last])
   end
   
   INF = 1.0/0.0
@@ -298,7 +323,7 @@ if __FILE__ == $0
   class Drip
     def quit
       Thread.new do
-        make_key do |key|
+        synchronize do |key|
           exit(0)
         end
       end

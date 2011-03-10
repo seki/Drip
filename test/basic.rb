@@ -134,6 +134,15 @@ class TestDrip < Test::Unit::TestCase
     assert_equal(ary[0][1], 7)
     assert_equal(ary[2][1], 9)
   end
+  
+  def test_after
+    assert_equal(@drip.write_after(Time.at(1), 1), 1000000)
+    assert_equal(@drip.write_after(Time.at(2), 2), 2000000)
+    assert_equal(@drip.write_after(Time.at(3), 3), 3000000)
+    assert_equal(@drip.write_after(Time.at(4), 4), 4000000)
+    assert_equal(@drip.write_after(Time.at(4), 5), 4000001)
+    assert_equal(@drip.write_after(Time.at(2), 6), 4000002)
+  end
 end
 
 class TestDripUsingStorage < TestDrip
