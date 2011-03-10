@@ -16,14 +16,19 @@ class Drip
   end
 
   def write(*value)
-    make_key do |key|
+    write_after(Time.now, *value)
+  end
+
+  def write_after(at, *value)
+    make_key(at) do |key|
       do_write(key, value)
       @pool[key] = @store.write(key, value)
     end
   end
-
-  def write_after(at, *value)
-    make_key_after(at) do |key|
+  
+  def write_at(at, *value)
+    make_key(at) do |key|
+      raise 'oops' if key - time_to_key(at) > 1000000
       do_write(key, value)
       @pool[key] = @store.write(key, value)
     end
@@ -255,22 +260,8 @@ class Drip
   ensure
     @event.write([:last, last || 0])
   end
-
-  def make_key0
-    synchronize do |last|
-      begin
-        key = time_to_key(Time.now)
-      end while last == key
-      yield(key)
-      key
-    end
-  end
   
-  def make_key(&blk)
-    make_key_after(Time.now, &blk)
-  end
-  
-  def make_key_after(at)
+  def make_key(at=Time.now)
     synchronize do |last|
       key = [time_to_key(at), last + 1].max
       yield(key)
