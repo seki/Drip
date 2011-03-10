@@ -27,8 +27,7 @@ class Drip
   end
   
   def write_at(at, *value)
-    make_key(at) do |key|
-      raise 'oops' if key - time_to_key(at) > 1000000
+    make_key_at(at) do |key|
       do_write(key, value)
       @pool[key] = @store.write(key, value)
     end
@@ -264,6 +263,15 @@ class Drip
   def make_key(at=Time.now)
     synchronize do |last|
       key = [time_to_key(at), last + 1].max
+      yield(key)
+      key
+    end
+  end
+  
+  def make_key_at(at)
+    synchronize do |last|
+      key = time_to_key(at)
+      raise 'InvalidTimeError' if key <= last
       yield(key)
       key
     end

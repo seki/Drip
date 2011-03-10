@@ -144,8 +144,9 @@ class TestDrip < Test::Unit::TestCase
     assert_equal(@drip.write_after(Time.at(2), 6), 4000002)
     assert_equal(@drip.write_after(Time.at(5), 6), 5000000)
     assert_equal(@drip.write_after(Time.at(5), 7), 5000001)
-    assert_raise(RuntimeError) {@drip.write_at(Time.at(3), 8)}
-    assert_equal(@drip.write_after(Time.at(5), 8), 5000002)
+    assert_equal(@drip.write_at(Time.at(6), 8), 6000000)
+    assert_raise(RuntimeError) {@drip.write_at(Time.at(6), 8)}
+    assert_equal(@drip.write_after(Time.at(5), 8), 6000001)
   end
 end
 
