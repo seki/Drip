@@ -30,19 +30,6 @@ class TestDrip < Test::Unit::TestCase
     oid, value = @drip.newer(oid)
     assert_equal(oid, nil)
     assert_equal(value, nil)
-    
-    latest ,= @drip.older(nil)
-    @drip._forget(latest)
-
-    oid, value = @drip.newer(0)
-    assert_equal(value, 'age' => 1)
-    oid, value = @drip.newer(oid)
-    assert_equal(value, 'age' => 2)
-    oid, value = @drip.newer(oid)
-    assert_equal(value, 'age' => 3)
-    oid, value = @drip.newer(oid)
-    assert_equal(oid, nil)
-    assert_equal(value, nil)
   end
 
   def test_read

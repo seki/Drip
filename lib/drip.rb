@@ -121,16 +121,6 @@ class Drip
     Time.at(*key.divmod(1000000))
   end
   
-  def _forget(key=nil)
-    return unless @store.forgettable?
-    key = time_to_key(Time.now) unless key    
-    @pool.each do |k, v|
-      return if k > key
-      v.forget
-    end
-    nil
-  end
-
   def next_tag(cur=nil, n=1)
     return _next_tag(cur) if n == 1
     ary = []
@@ -159,8 +149,7 @@ class Drip
     Attic = Struct.new(:fname, :fpos, :value)
     class Attic
       def to_a
-        retrieve unless value
-        value
+        value || retrieve
       end
       
       def forget
@@ -171,8 +160,23 @@ class Drip
         File.open(fname) do |fp|
           fp.seek(fpos)
           kv = Marshal.load(fp)
-          self.value = kv[1]
+          kv[1]
         end
+      end
+    end
+
+    class AtticCache
+      def initialize(n)
+        @size = n
+        @tail = 0
+        @ary = Array.new(n)
+      end
+      
+      def push(attic)
+        @ary[@tail].forget if @ary[@tail]
+        @ary[@tail] = attic
+        @tail = (@tail + 1) % @size
+        attic
       end
     end
 
@@ -192,9 +196,10 @@ class Drip
       file.close if file
     end
 
-    def initialize(name)
+    def initialize(name, cache_size = 8)
       @name = name
       @file = nil
+      @cache = AtticCache.new(cache_size) if @name
     end
 
     def forgettable?
@@ -207,7 +212,7 @@ class Drip
       pos = @file.pos
       Marshal.dump([key, value], @file)
       @file.flush
-      Attic.new(@name, pos, value)
+      @cache.push(Attic.new(@name, pos, value))
     end
   end
 
