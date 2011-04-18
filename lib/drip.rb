@@ -7,12 +7,12 @@ class Drip
   include DRbUndumped
   def inspect; to_s; end
 
-  def initialize(dir)
+  def initialize(dir, option={})
     @pool = RBTree.new
     @tag = RBTree.new
     @event = Rinda::TupleSpace.new(5)
     @event.write([:last, 0])
-    prepare_store(dir)
+    prepare_store(dir, option)
   end
 
   def write(*value)
@@ -196,16 +196,13 @@ class Drip
       file.close if file
     end
 
-    def initialize(name, cache_size = 8)
+    def initialize(name, option={})
       @name = name
       @file = nil
+      cache_size = option.fetch(:cache_size, 8)
       @cache = AtticCache.new(cache_size) if @name
     end
 
-    def forgettable?
-      @name ? true : false
-    end
-    
     def write(key, value)
       return value unless @name
       @file = File.open(@name, 'a+b') unless @file
@@ -216,9 +213,9 @@ class Drip
     end
   end
 
-  def prepare_store(dir)
+  def prepare_store(dir, option={})
     if dir.nil?
-      @store = SimpleStore.new(nil)
+      @store = SimpleStore.new(nil, option)
       return
     end
 
