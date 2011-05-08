@@ -1,3 +1,6 @@
+#
+#     import from https://github.com/shibason/rb-simple-oauth
+#     see: http://d.hatena.ne.jp/shibason/20090809/1249764381
 require 'uri'
 require 'net/http'
 require 'openssl'
