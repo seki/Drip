@@ -5,12 +5,44 @@ require 'json'
 
 MyDrip = DRbObject.new_with_uri('drbunix:' + File.expand_path('~/.drip/port'))
 
+class DripFiber
+  def initialize(app)
+    @app = app
+    @fiber = Fiber.new do |event|
+      story(event)
+    end
+  end
+
+  def story(event)
+    pending = []
+    while event['id_str'].nil?
+      pending << event
+      event = Fiber.yield
+    end
+    
+    @app.fill_timeline(event['id_str'])
+
+    while event = pending.shift
+      @app.write(event)
+    end
+    
+    while true
+      event = Fiber.yield
+      @app.write(event)
+    end
+  end
+  
+  def push(event)
+    @fiber.resume(event)
+  end
+end
+
 class JSONStream
   def initialize(drip)
     @buf = ''
     @drip = drip
   end
-  
+
   def push(str)
     @buf << str
     while (line = @buf[/.+?(\r\n)+/m]) != nil
@@ -21,7 +53,8 @@ class JSONStream
       rescue
         break
       end
-      @drip.write(event, 'DripDemo Event')
+      pp event if $DEBUG
+      @drip.push(event)
     end
   end
 end
@@ -99,13 +132,68 @@ class DripDemo
   end
 
   def drip_stream
-    json = JSONStream.new(MyDrip)
-    oauth.request(:GET,
-                  'https://userstream.twitter.com/2/user.json') do |r|
+    json = JSONStream.new(DripFiber.new(self))
+    oauth.request(:GET, 'https://userstream.twitter.com/2/user.json') do |r|
       r.read_body do |chunk|
         json.push(chunk)
       end
     end
+  end
+
+  def home_timeline(since_id, max_id)
+    r = oauth.request(:GET,
+                      "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_entities=true&since_id=#{since_id}&max_id=#{max_id}")
+    ary = JSON.parse(r.body)
+    last = nil
+    ary.reverse_each do |event|
+      write(event)
+      last = event['id_str'] if event['id_str']
+    end
+    last
+  end
+
+  def last_tweet_id
+    key = nil
+    while kv = MyDrip.older(key, 'DripDemo Event')
+      key, value = kv
+      return value['id_str'] if value.include?('text')
+    end
+    nil
+  end
+
+  def fill_timeline(max_id)
+    4.times do
+      since_id = last_tweet_id
+      return unless since_id
+      return if since_id == max_id
+       home_timeline(since_id, max_id)
+    end
+  end
+
+  def compact_event(event)
+    result = {}
+    event.each do |k, v|
+      case v
+      when Hash
+        v = compact_event(v)
+        next if v.nil?
+      when [], '', 0, nil
+        next
+      end
+      if k == 'user'
+        tmp = {}
+        %w(name screen_name id id_str).each {|attr| tmp[attr] = v[attr]}
+        v = tmp
+      end
+      result[k] = v
+    end
+    result.size == 0 ? nil : result
+  end
+  
+  def write(event)
+    event = compact_event(event)
+    key = MyDrip.write(event, 'DripDemo Event')
+    pp [key, event['id_str'], event['text']]
   end
 end
 
@@ -115,13 +203,13 @@ if __FILE__ == $0
   unless app.has_token?
     url = app.pin_url
     puts url
-    # system('open ' + url) # for OSX
+    system('open ' + url) # for OSX
     app.set_pin(gets.scan(/\w+/)[0])
     app.write_setting
   end
 
   unless $DEBUG
-    Process.daemon
+    # Process.daemon
   end
   app.drip_stream
 end
