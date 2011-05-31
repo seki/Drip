@@ -195,6 +195,11 @@ class DripDemo
     key = MyDrip.write(event, 'DripDemo Event')
     pp [key, event['id_str'], event['text']]
   end
+
+  def test
+    r = oauth.post('http://api.twitter.com/1/statuses/update.xml?status=test')
+    pp r.body
+  end
 end
 
 if __FILE__ == $0
@@ -209,7 +214,7 @@ if __FILE__ == $0
   end
 
   unless $DEBUG
-    # Process.daemon
+    Process.daemon
   end
   app.drip_stream
 end

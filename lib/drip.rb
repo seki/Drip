@@ -319,44 +319,6 @@ class Drip
 end
 
 if __FILE__ == $0
-  require 'fileutils'
-
-  class Drip
-    def quit
-      Thread.new do
-        synchronize do |key|
-          exit(0)
-        end
-      end
-    end
-  end
-
-  unless $DEBUG
-    exit!(0) if fork
-    Process.setsid
-    exit!(0) if fork
-  end
-  
-  dir = File.expand_path('~/.drip')
-  uri = 'drbunix:' + File.join(dir, 'port')
-  ro = DRbObject.new_with_uri(uri)
-  begin
-    ro.older(nil) #ping
-    exit
-  rescue
-  end
-
-  FileUtils.mkdir_p(dir)
-  FileUtils.cd(dir)
-  
-  drip = Drip.new('drip')
-  DRb.start_service(uri, drip)
-  File.open('pid', 'w') {|fp| fp.puts($$)}
-  
-  unless $DEBUG
-    STDIN.reopen('/dev/null')
-    STDOUT.reopen('/dev/null', 'w')
-    STDERR.reopen('/dev/null', 'w')
-  end
-  DRb.thread.join
+  require 'my_drip'
+  MyDrip.invoke
 end
