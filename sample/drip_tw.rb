@@ -60,12 +60,18 @@ class JSONStream
 end
 
 class SimpleOAuthS < SimpleOAuth
+  def http_class
+    return Net::HTTP unless ENV['http_proxy']
+    proxy_url = URI.parse(ENV['http_proxy'])
+    Net::HTTP.Proxy(proxy_url.host, proxy_url_port)
+  end
+
   def request(method, url, body =nil, headers = {}, &block)
     method = method.to_s
     url = URI.parse(url)
     request = create_http_request(method, url.request_uri, body, headers)
     request['Authorization'] = auth_header(method, url, request.body)
-    http = Net::HTTP.new(url.host, url.port)
+    http = http_class.new(url.host, url.port)
     if url.scheme == 'https'
       http.use_ssl = true
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
