@@ -171,6 +171,7 @@ class DripDemo
   end
 
   def compact_event(event)
+    return event unless Hash === event
     result = {}
     event.each do |k, v|
       case v
@@ -179,6 +180,8 @@ class DripDemo
         next if v.nil?
       when [], '', 0, nil
         next
+      when Array
+        v = v.collect {|vv| compact_event(vv)}
       end
       if k == 'user'
         tmp = {}
@@ -193,12 +196,12 @@ class DripDemo
   def write(event)
     event = compact_event(event)
     key = MyDrip.write(event, 'DripDemo Event')
-    pp [key, event['id_str'], event['text']]
+    pp [key, event['id_str'], event['text']] if $DEBUG
   end
 
   def test
     r = oauth.post('http://api.twitter.com/1/statuses/update.xml?status=test')
-    pp r.body
+    pp r.body if $DEBUG
   end
 end
 
