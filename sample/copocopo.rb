@@ -26,13 +26,23 @@ class CopoCopo
     end
     ary
   end
+
+  def make_status(ary, name)
+    "@#{name} " + ary.collect { |s|
+      "#{s}#{s}、#{s}"
+    }.join(", ")
+  end
   
   def main_loop
     while true
       @last, event = @drip.read_tag(@last, 'DripDemo Event', 1)[0]
       ary = extract(event['text'] || '')
       if ary.size > 0
-        pp [ary, dig(event, 'user', 'screen_name'), event['id']]
+        name = dig(event, 'user', 'screen_name')
+        tweet_id = event['id']
+        if ['m_seki', 'miwa719', 'vestige', 'mame'].include?(name)
+          @app.update(make_status(ary, name), tweet_id)
+        end
         @drip.write(@last, 'CopoCopo Footprint')
       end
     end
