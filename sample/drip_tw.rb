@@ -205,6 +205,11 @@ class DripDemo
     pp [key, event['id_str'], event['text']] if $DEBUG
   end
 
+  def hello(str='Hello, Drip')
+    status = URI.encode(str)
+    oauth.post('http://api.twitter.com/1/statuses/update.xml?status=' + status)
+  end
+
   def test
     r = oauth.post('http://api.twitter.com/1/statuses/update.xml?status=test')
     pp r.body if $DEBUG
