@@ -30,7 +30,7 @@ class CopoCopo
   def make_status(ary, name)
     "@#{name} " + ary.collect { |s|
       "#{s}#{s}、#{s}"
-    }.join(", ")
+    }.join(", ") + "　(by copocopo)"
   end
   
   def main_loop
