@@ -2,8 +2,7 @@ require 'simple-oauth'
 require 'drb'
 require 'pp'
 require 'json'
-
-MyDrip = DRbObject.new_with_uri('drbunix:' + File.expand_path('~/.drip/port'))
+require 'my_drip'
 
 class DripFiber
   def initialize(app)
