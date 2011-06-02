@@ -205,13 +205,17 @@ class DripDemo
     pp [key, event['id_str'], event['text']] if $DEBUG
   end
 
-  def hello(str='Hello, Drip')
-    status = URI.encode(str)
-    oauth.post('http://api.twitter.com/1/statuses/update.xml?status=' + status)
+  def hello(str='Hello, Drip', in_reply_to=nil)
+    hash = { :status => str }
+    hash[:in_reply_to_status_id] = in_reply_to if in_reply_to
+    r = oauth.post('http://api.twitter.com/1/statuses/update.xml',
+                   hash)
+    pp r.body if $DEBUG
   end
 
   def test
-    r = oauth.post('http://api.twitter.com/1/statuses/update.xml?status=test')
+    r = oauth.post('http://api.twitter.com/1/statuses/update.xml',
+                   {:status => 'test'})
     pp r.body if $DEBUG
   end
 end
