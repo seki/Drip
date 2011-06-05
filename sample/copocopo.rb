@@ -44,15 +44,14 @@ class CopoCopo
     while true
       @last, event = @drip.read_tag(@last, 'DripDemo Event', 1)[0]
       ary = extract(event['text'] || '')
-      if ary.size > 0
-        next unless Time.now < created_at(event) + 6000
-        name = dig(event, 'user', 'screen_name')
-        tweet_id = event['id']
-        if ['miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
-          @app.update(make_status(ary, name), tweet_id)
-        end
-        @drip.write(@last, 'CopoCopo Footprint')
+      next if ary.empty?
+      next unless Time.now < created_at(event) + 6000
+      name = dig(event, 'user', 'screen_name')
+      tweet_id = event['id']
+      if ['miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
+        @app.update(make_status(ary, name), tweet_id)
       end
+      @drip.write(@last, 'CopoCopo Footprint')
     end
   end
 end
