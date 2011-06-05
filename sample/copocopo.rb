@@ -13,12 +13,12 @@ end
 
 class CopoCopo
   def initialize(drip=MyDrip)
-    @app = DripDemo.new
+    @app = DripDemo.new('CopoCopo OAuth')
     @drip = drip
     _, @last = @drip.older(nil, 'CopoCopo Footprint')
     @last = 0 if @last.nil?
   end
-  attr_reader :last
+  attr_reader :app
 
   def extract(str)
     ary = []
@@ -48,7 +48,7 @@ class CopoCopo
         next unless Time.now < created_at(event) + 6000
         name = dig(event, 'user', 'screen_name')
         tweet_id = event['id']
-        if ['miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
+        if ['m_seki', 'miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
           @app.update(make_status(ary, name), tweet_id)
         end
         @drip.write(@last, 'CopoCopo Footprint')
@@ -58,4 +58,15 @@ class CopoCopo
 end
 
 copo = CopoCopo.new
+app = copo.app
+
+unless app.has_token?
+  url = app.pin_url
+  puts url
+  system('open ' + url) # for OSX
+  app.set_pin(gets.scan(/\w+/)[0])
+  app.write_setting
+end
+
 copo.main_loop
+

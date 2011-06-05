@@ -83,7 +83,8 @@ class SimpleOAuthS < SimpleOAuth
 end
 
 class DripDemo
-  def initialize
+  def initialize(oauth_tag = 'DripDemo OAuth')
+    @oauth_tag = oauth_tag
     @oa = last_setting || {}
   end
 
@@ -92,11 +93,11 @@ class DripDemo
   end
 
   def last_setting
-    MyDrip.older(nil, 'DripDemo OAuth')[1]
+    MyDrip.older(nil, @oauth_tag)[1]
   end
 
   def write_setting
-    MyDrip.write(@oa, 'DripDemo OAuth')
+    MyDrip.write(@oa, @oauth_tag)
   end
 
   def update_setting(body, keys=nil)
