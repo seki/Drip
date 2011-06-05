@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 require 'drip_tw'
 require 'my_drip'
+require 'date'
 require 'pp'
 
 def dig(root, *keys)
@@ -27,6 +28,12 @@ class CopoCopo
     ary
   end
 
+  def created_at(event)
+    DateTime.parse(event['created_at']).to_time
+  rescue
+    Time.at(1)
+  end
+
   def make_status(ary, name)
     "@#{name} " + ary.collect { |s|
       "#{s}#{s}、#{s}"
@@ -38,9 +45,10 @@ class CopoCopo
       @last, event = @drip.read_tag(@last, 'DripDemo Event', 1)[0]
       ary = extract(event['text'] || '')
       if ary.size > 0
+        next unless Time.now < created_at(event) + 6000
         name = dig(event, 'user', 'screen_name')
         tweet_id = event['id']
-        if ['m_seki', 'miwa719', 'vestige', 'mame'].include?(name)
+        if ['miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
           @app.update(make_status(ary, name), tweet_id)
         end
         @drip.write(@last, 'CopoCopo Footprint')
