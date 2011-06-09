@@ -17,6 +17,7 @@ class CopoCopo
     @drip = drip
     _, @last = @drip.older(nil, 'CopoCopo Footprint')
     @last = 0 if @last.nil?
+    @friends = %w(m_seki miwa719 hsbt vestige mame)
   end
   attr_reader :app
 
@@ -25,7 +26,15 @@ class CopoCopo
     str.scan(/(([ぁ-ん]{2,})\2)|(([ァ-ヴ]{2,})\4)/) do |x|
       ary << (x[1] || x[3])
     end
-    ary
+    ary.uniq
+  end
+
+  def retweet?(event)
+    event['retweeted_status'] ? true : false
+  end
+
+  def mention?(event)
+    event['in_reply_to_status_id_str'] ? true : false
   end
 
   def created_at(event)
@@ -39,20 +48,21 @@ class CopoCopo
       "#{s}#{s}、#{s}"
     }.join(", ") + "　(by copocopo)"
   end
-  
+
   def main_loop
     while true
       @last, event = @drip.read_tag(@last, 'DripDemo Event', 1)[0]
+      next if retweet?(event)
+      next if mention?(event)
+      next unless Time.now < created_at(event) + 6000
+      name = dig(event, 'user', 'screen_name')
+      next unless @friends.include?(name)
       ary = extract(event['text'] || '')
-      if ary.size > 0
-        next unless Time.now < created_at(event) + 6000
-        name = dig(event, 'user', 'screen_name')
-        tweet_id = event['id']
-        if ['m_seki', 'miwa719', 'hsbt', 'vestige', 'mame'].include?(name)
-          @app.update(make_status(ary, name), tweet_id)
-        end
-        @drip.write(@last, 'CopoCopo Footprint')
-      end
+      next if ary.empty?
+      tweet_id = event['id']
+      # @app.update(make_status(ary, name), tweet_id)
+      p [make_status(ary, name)]
+      # @drip.write(@last, 'CopoCopo Footprint')
     end
   end
 end
