@@ -19,7 +19,10 @@ class DripFiber
       event = Fiber.yield
     end
     
-    @app.fill_timeline(event['id_str'])
+    ary = @app.fill_timeline(event['id_str'])
+    ary.reverse_each do |event|
+      @app.write(event)
+    end
 
     while event = pending.shift
       @app.write(event)
@@ -147,15 +150,19 @@ class DripDemo
   end
 
   def home_timeline(since_id, max_id)
-    r = oauth.request(:GET,
-                      "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_entities=true&since_id=#{since_id}&max_id=#{max_id}")
-    ary = JSON.parse(r.body)
-    last = nil
-    ary.reverse_each do |event|
-      write(event)
-      last = event['id_str'] if event['id_str']
-    end
-    last
+    url = "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_entities=true"
+    url += "&since_id=#{since_id}" if since_id
+    url += "&max_id=#{max_id}" if max_id
+    r = oauth.request(:GET, url)
+    JSON.parse(r.body)
+  end
+
+  def user_timeline(since_id, max_id)
+    url = "http://api.twitter.com/1/statuses/user_timeline.json?count=200&include_entities=true&trim_user=t"
+    url += "&since_id=#{since_id}" if since_id
+    url += "&max_id=#{max_id}" if max_id
+    r = oauth.request(:GET, url)
+    JSON.parse(r.body)
   end
 
   def last_tweet_id
@@ -168,12 +175,22 @@ class DripDemo
   end
 
   def fill_timeline(max_id)
+    since_id = last_tweet_id
+    return unless since_id
+    timeline = []
     4.times do
-      since_id = last_tweet_id
-      return unless since_id
-      return if since_id == max_id
-       home_timeline(since_id, max_id)
+      return if since_id == max_id || max_id.nil?
+      ary = home_timeline(since_id, max_id)
+      max_id = nil
+      ary.reverse_each do |event|
+        if event['id_str'] 
+          max_id = event['id_str']
+          break
+        end
+      end
+      timeline += ary
     end
+    timeline
   end
 
   def compact_event(event)
@@ -199,9 +216,9 @@ class DripDemo
     result.size == 0 ? nil : result
   end
   
-  def write(event)
+  def write(event, tag='DripDemo Event')
     event = compact_event(event)
-    key = MyDrip.write(event, 'DripDemo Event')
+    key = MyDrip.write(event, tag)
     pp [key, event['id_str'], event['text']] if $DEBUG
   end
 
