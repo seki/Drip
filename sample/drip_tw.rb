@@ -19,10 +19,7 @@ class DripFiber
       event = Fiber.yield
     end
     
-    ary = @app.fill_timeline(event['id_str'])
-    ary.reverse_each do |event|
-      @app.write(event)
-    end
+    @app.fill_timeline(event['id_str'])
 
     while event = pending.shift
       @app.write(event)
@@ -181,16 +178,19 @@ class DripDemo
     4.times do
       return if since_id == max_id || max_id.nil?
       ary = home_timeline(since_id, max_id)
+      pp [:fill_timeline, ary.size] if $DEBUG
       max_id = nil
       ary.reverse_each do |event|
-        if event['id_str'] 
-          max_id = event['id_str']
-          break
-        end
+        next unless event['id']
+        max_id = event['id'] - 1
+        break
       end
+      break if max_id.nil?
       timeline += ary
     end
-    timeline
+    timeline.reverse_each do |event|
+      write(event)
+    end
   end
 
   def compact_event(event)
