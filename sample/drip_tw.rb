@@ -62,7 +62,7 @@ class SimpleOAuthS < SimpleOAuth
   def http_class
     return Net::HTTP unless ENV['http_proxy']
     proxy_url = URI.parse(ENV['http_proxy'])
-    Net::HTTP.Proxy(proxy_url.host, proxy_url_port)
+    Net::HTTP.Proxy(proxy_url.host, proxy_url.port)
   end
 
   def request(method, url, body =nil, headers = {}, &block)
