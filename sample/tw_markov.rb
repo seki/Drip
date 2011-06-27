@@ -2,6 +2,7 @@
 require 'my_drip'
 require 'MeCab'
 require 'pp'
+require 'bag'
 
 class EntityEnum
   def initialize(str, entity)
@@ -35,8 +36,8 @@ end
 
 class Markov
   def initialize
-    @dic = Hash.new {|h, k| h[k] = Hash.new {|hh, kk| hh[kk] = Hash.new(0)}}
-    @start = Hash.new(0)
+    @bag = BagInBag.new { BagInBag.new { Bag.new } }
+    @start = Bag.new
     @intern = Hash.new
   end
 
@@ -47,18 +48,18 @@ class Markov
 
   def add(ary)
     return if ary.size <= 3
-    @start[ary[0]] += 1
+    ary = ary.collect {|s| intern(s)}
+    @start.push(ary[0])
     ary.each_cons(3) do |p0, p1, suffix|
-      @dic[p0][p1][suffix] +=1 
+      @bag.push(p0, p1, suffix)
     end
   end
 
   def generate(max_len=30)
-    s = @start.keys.sample
-    ary = [s, @dic[s].keys.sample]
-    return [s] if ary[1] == :eos
+    s = @start.sample
+    ary = [s, @bag[s].sample]
     max_len.times do
-      it = @dic[ary[-2]][ary[-1]].keys.sample
+      it = @bag[*ary[-2, 2]].sample
       break if it == :eos
       ary << it
     end
@@ -66,8 +67,10 @@ class Markov
   end
 end
 
+$screen_name = {}
+
 def mention_user
-  " #{%w(@miwa719 @m_seki @mame @awazeki).sample} "
+  " @#{$screen_name.keys.sample} "
 end
 
 def as_str(ary)
@@ -89,6 +92,9 @@ MyDrip.head(4000, 'DripDemo MyStatus').each do |k, v|
       ary += m.parse(s).split(' ')
     else
       ary <<:name if kind['screen_name']
+      if kind['screen_name']
+        $screen_name[kind['screen_name']] = true
+      end
     end
   end
   markov.add(ary + [:eos])
