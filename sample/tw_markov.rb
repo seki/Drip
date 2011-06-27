@@ -2,7 +2,51 @@
 require 'my_drip'
 require 'MeCab'
 require 'pp'
-require 'bag'
+
+class Bag
+  def initialize
+    @bag = Hash.new(0)
+    @size = 0
+    @cache = nil
+  end
+  attr_reader :size
+  
+  def push(obj)
+    @cache = nil
+    @bag[obj] += 1
+    @size += 1
+    obj
+  end
+
+  def sample
+    @cache = @bag.sort_by {|k, v| v} unless @cache
+    prob = rand(@size)
+    @cache.each do |k, v|
+      prob -= v
+      return k if prob < 0
+    end
+  end
+end
+
+class BagInBag < Bag
+  def initialize(&blk)
+    super
+    @bag_in_bag = Hash.new {|h, k| h[k] = blk.call}
+  end
+  
+  def push(obj, *rest)
+    super(obj)
+    @bag_in_bag[obj].push(*rest)
+  end
+
+  def [](key, *rest)
+    if rest.empty?
+      @bag_in_bag[key]
+    else
+      @bag_in_bag[key][*rest]
+    end
+  end
+end
 
 class EntityEnum
   def initialize(str, entity)
