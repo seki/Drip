@@ -54,33 +54,17 @@ class TestDrip < Test::Unit::TestCase
     assert_equal(tags, ['tag1', 'tag2'])
   end
 
-  def test_next_tag
-    11.times do |n|
-      value = {"n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n}
-      @drip.write(value, *value.keys)
-    end
-    assert_equal(@drip.next_tag(), 'n')
-    assert_equal(@drip.next_tag(nil), 'n')
-    assert_equal(@drip.next_tag('n='), 'n=0')
-    assert_equal(@drip.next_tag('n=0'), 'n=1')
-    assert_equal(@drip.next_tag('n=0', 3), ['n=1', 'n=10', 'n=2'])
-    assert_equal(@drip.tags, ["n",
-                              "n=0", "n=1", "n=10", "n=2", "n=3",
-                              "n=4", "n=5", "n=6", "n=7", "n=8", "n=9"])
-    # tags with prefix
-    assert_equal(@drip.tags("n="), %w(0 1 10 2 3 4 5 6 7 8 9))
-  end
-  
   def test_symbol_is_not_tag
     @drip.write({:symbol => :symbol, 'string' => :string}, :symbol, 'string')
-    assert_equal(@drip.tags, ['string'])
+    assert_raise(ArgumentError) {@drip.read_tag(0, :symbol, 1, 0)}
     oid, value = @drip.older(@drip.time_to_key(Time.now))
     assert_equal(value, {:symbol => :symbol, 'string' => :string})
   end
 
   def test_number_is_not_tag
     @drip.write({5 => :five, 'string' => :string}, 5, 'string')
-    assert_equal(@drip.tags, ['string'])
+    assert_equal(@drip.read_tag(0, 'string', 1, 0).size, 1)
+    assert_raise(ArgumentError) {@drip.read_tag(0, 5, 1, 0)}
   end
   
   def test_older_now_is_newest
