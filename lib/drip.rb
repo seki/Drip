@@ -15,20 +15,20 @@ class Drip
     prepare_store(dir, option)
   end
 
-  def write(*value)
-    write_after(Time.now, *value)
+  def write(obj, *tags)
+    write_after(Time.now, obj, *tags)
   end
 
   def write_after(at, *value)
     make_key(at) do |key|
-      do_write(key, value)
+      value = do_write(key, value)
       @pool[key] = @store.write(key, value)
     end
   end
   
   def write_at(at, *value)
     make_key_at(at) do |key|
-      do_write(key, value)
+      value = do_write(key, value)
       @pool[key] = @store.write(key, value)
     end
   end
@@ -218,13 +218,14 @@ class Drip
   end
 
   def do_write(key, value)
-    (1...value.size).each do |n|
-      k = value[n]
+    obj, *tags = value
+    tags.uniq!
+    tags.each do |k|
       next unless String === k
       tag = shared_text(k)
       @tag[[tag, key]] = key
     end
-    @pool[key] = value
+    @pool[key] = [obj] + tags
   end
 
   def restore(store)

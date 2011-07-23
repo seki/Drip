@@ -119,6 +119,11 @@ class TestDrip < Test::Unit::TestCase
     assert_raise(RuntimeError) {@drip.write_at(Time.at(6), 8)}
     assert_equal(@drip.write_after(Time.at(5), 8), 6000001)
   end
+  
+  def test_duplicate_tags
+    oid = @drip.write('dup', 'hello', 'hello', 'hello')
+    assert_equal(@drip[oid], ['dup', 'hello'])
+  end
 end
 
 class TestDripUsingStorage < TestDrip
