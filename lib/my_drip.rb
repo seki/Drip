@@ -37,6 +37,10 @@ def MyDrip.invoke
   end
 end
 
+def MyDrip.inspect
+  "<MyDrip: #{@uri}>"
+end
+
 class DripCursor
   def initialize(drip, bufsiz=10, at_least=10)
     @drip = drip
