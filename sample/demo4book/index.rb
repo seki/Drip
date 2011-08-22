@@ -1,63 +1,69 @@
-require 'pp'
 require 'nkf'
 require 'rbtree'
 require 'my_drip'
+require 'monitor'
+require 'pp'
 
 class Indexer
   def initialize(cursor=0)
     @drip = MyDrip
-    @cursor = cursor
+    @dict = Dict.new
+    k, = @drip.head(1, 'rbcrowl-begin')[0]
+    @fence = k || 0
+    @cursor = [cursor, @fence].max
   end
+  attr_reader :dict
 
   def prev_version(cursor, fname)
-    _, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
-    v
+    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+    (v && k > @fence) ? v : nil
   end
 
   def each_document
-    n = 0
     while true
-      ary = @drip.read_tag(@cursor, 'rbcrowl', 10, 0)
-      break if ary.empty?
+      ary = @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
       ary.each do |k, v|
         prev = prev_version(k, v[0])
         yield(v, prev)
         @cursor = k
-        n += 1
-        p n if n % 100 == 0
       end
     end
   end
   
-  def make_dict
-    dict = Dict.new
-    indexer = Indexer.new
-    indexer.each_document do |cur, prev|
-      dict.delete(*prev) if prev
-      dict.push(*cur)
+  def update_dict
+    each_document do |cur, prev|
+      @dict.delete(*prev) if prev
+      @dict.push(*cur)
     end
-    dict
   end
 end
 
 class Dict
+  include MonitorMixin
   def initialize
+    super()
     @tree = RBTree.new
   end
 
   def query(word)
-    @tree.bound([word, 0, ''], [word + "\0", 0, '']).collect {|k, v| k[2]}
+    synchronize do
+      @tree.bound([word, 0, ''], [word + "\0", 0, '']).collect {|k, v| k[2]}
+    end
   end
 
   def delete(fname, mtime, src)
-    each_tree_key(fname, mtime, src) do |key|
-      @tree.delete(key)
+    synchronize do
+      each_tree_key(fname, mtime, src) do |key|
+        @tree.delete(key)
+      end
     end
   end
 
   def push(fname, mtime, src)
-    each_tree_key(fname, mtime, src) do |key|
-      @tree[key] = true
+    synchronize do
+      each_tree_key(fname, mtime, src) do |key|
+        @tree[key] = true
+      end
     end
   end
 
@@ -74,18 +80,15 @@ class Dict
   end
 end
 
-indexer = Indexer.new
-dict = indexer.make_dict
-
-File.open('index.dump', 'wb') do |fp|
-  Marshal.dump(dict, fp)
+indexer ||= Indexer.new(0)
+Thread.new do
+  indexer.update_dict
 end
 
-pp dict
-
-p :indexed
 while line = gets
-  pp dict.query(line.chomp)
+  ary = indexer.dict.query(line.chomp)
+  pp ary
+  pp ary.size
 end
 
 
