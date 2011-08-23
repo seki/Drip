@@ -74,7 +74,7 @@ class Dict
   end
 
   def each_tree_key(fname, mtime, src)
-    NKF.nkf('-w', src).scan(/\w+/m) do |word|
+    NKF.nkf('-w', src).scan(/\w+/m).uniq.each do |word|
       yield([intern(word), mtime.to_i, fname])
     end
   end
