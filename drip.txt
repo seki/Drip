@@ -564,7 +564,73 @@ Dripはストレージに関する一連の習作の経験から、「作りす�
 ***簡易検索システム
 
 ここでは非常に小さな検索システムを作ります。検索システムのミニチュアの作成を通じてDripの応用のヒントとして下さい。
-このシステムには主に三つのプロセスが登場します。自分のマシンにあるRubyスクリプトを探してはDripに登録するクロウラ、Dripへ登録されたファイルを検索のために索引をつけるインデクサ、そして中心となるMyDripサーバです。この実験でもMyDripを使用しますので、事前にMyDrip.invokeするか、Windows環境では代替となるサーバを起動しておいて下さいね。
+このシステムには主に三つのプロセスが登場します。自分のマシンにあるRubyスクリプトを探してはDripに登録するクロウラ、Dripへ登録されたファイルを検索のために索引をつけるインデクサ、そして中心となるMyDripサーバです。
+
+
+動かし方
+
+この実験でもMyDripを使用しますので、事前にMyDrip.invokeするか、Windows環境では代替となるサーバを起動しておいて下さいね。
+
+    $ irb -r drip -r my_drip
+    >> MyDrip.invoke
+    => 45616 
+
+
+    今回のサンプルはDripのソースコードの中にも含まれています。まずはダウンロードしてみましょう。
+
+    $ cd ~
+    $ git clone git://github.com/seki/Drip.git
+    $ cd Drip/sample/demo4book
+
+実際にcrawlerを動かす前にcrawler.rbの１０行目に、検索したいディレクトリして下さい。
+ファイル数が多いと実験に時間が非常にかかるので、少ないディレクトリを選んでください。500ファイル程度が実験しやすいのではないかと思います。
+今回はソースコードのディレクトリを指定しました。
+
+    @root = File.expand_path('~/Drip/')
+
+以下のようにcrowl.rbを実行するとcrowlするごとにファイルの一覧が表示されます。
+
+    $ ruby crowl.rb 
+    ["install.rb",
+     "lib/drip/version.rb",
+     "lib/drip.rb",
+     "lib/my_drip.rb",
+     "sample/copocopo.rb",
+     "sample/demo4book/crowl.rb",
+     "sample/demo4book/index.rb",
+     "sample/drip_s.rb",
+     "sample/drip_tw.rb",
+     "sample/gca.rb",
+     "sample/hello_tw.rb",
+     "sample/my_status.rb",
+     "sample/simple-oauth.rb",
+     "sample/tw_markov.rb",
+     "test/basic.rb"]
+
+次に別のターミナルでインデクサを起動し、探したい単語を入力すると、その単語が存在するファイル名を一覧として表示します。
+ここでは「def」という単語を検索しています。
+起動してすぐはまだ索引が完全でないので、急いでなんども検索すると索引対象が増えていく様子を見られるかもしれません。
+
+         $ ruby index.rb
+         def
+         ["sample/demo4book/index.rb", "sample/demo4book/crowl.rb"]
+         2
+         def     
+         ["sample/drip_s.rb",
+          "lib/drip.rb",
+          "lib/my_drip.rb",
+          "sample/copocopo.rb",
+          "sample/demo4book/index.rb",
+          "sample/demo4book/crowl.rb"]
+         6
+
+クロウラは60秒置きに更新を調べるようになっています。標準入力からなにか入力すると、更新の合間を待ってから終了します
+クローラのタイミングをもっと短くすればより検索更新のリアルタイム性が増してきます。
+
+昨今の大規模なプロジェクトではプロジェクトファイルの検索をするだけで結構時間がかかったりするものです。
+このクローラを改造していくことで、自分だけのちょっとしたリアルタイム検索ツールになるかもしれません。
+
+ここからはソースコードを解説していきます。
 
 ***投入する要素
 
@@ -580,24 +646,146 @@ Dripはストレージに関する一連の習作の経験から、「作りす�
 -クロウラの足跡 - ひとまとまりの処理のなかで更新したファイル名の一覧と、その時刻をメモします。'rbcrowl-footprint'というタグを持ちます。
 -実験開始を示すアンカー - 'rbcrowl-begin'というタグを持ちます。何度か実験を繰り返しているうちにはじめからやり直したくなったらこのタグでなにかwriteしてください。
 
+ではこれらのオブジェクトやタグがどのように使われているか見てみましょう
 
 ***クロウラ
 
 簡易クロウラの動作を説明します。
-まず、指定したディレクトリ以下にある*.rbのファイルを探します。そしてその更新時刻を調べ、新しいファイルを見つけたらその内容や時刻をwriteします。更新されたか否かは、olderメソッドで一つ前のバージョンを探し比較して検査します。'rbcrowl-fname=ファイル名'というタグでolderすることで、直前のバージョンを調べることができます。
-クロウラは60秒置きに更新を調べるようになっています。標準入力からなにか入力すると、更新の合間を待ってから終了します。一回の処理で見つけたファイル名の配列を'rbcrowl-footprint'というタグをつけて覚えておきます。このバージョンのクロウラはファイルの削除を追いかけませんが、この足跡情報を使えば削除を知ることができるかもしれません。
 
-@rootで検索対象となるディレクトリを指定しますが、ファイル数が多いと実験に時間が非常にかかるので、少ないディレクトリを選んでください。500ファイル程度が実験しやすいのではないかと思います。
+    class Crowler
+      include MonitorMixin
 
+      def initialize
+        super()
+        @root = File.expand_path('~/develop/git-repo/')
+        @drip = MyDrip
+        k, = @drip.head(1, 'rbcrowl-begin')[0]
+        @fence = k || 0
+      end
+
+      def last_mtime(fname)
+        k, v, = @drip.head(1, 'rbcrowl-fname=' + fname)[0]
+        (v && k > @fence) ? v[1] : Time.at(1)
+      end
+
+      def do_crowl
+        synchronize do
+          ary = []
+          Dir.chdir(@root)
+          Dir.glob('**/*.rb').each do |fname|
+            mtime = File.mtime(fname)
+            next if last_mtime(fname) >= mtime
+            @drip.write([fname, mtime, File.read(fname)],
+                        'rbcrowl', 'rbcrowl-fname=' + fname)
+            ary << fname
+          end
+          @drip.write(ary, 'rbcrowl-footprint')
+          ary
+        end
+      end
+  
+      def quit
+        synchronize do
+          exit(0)
+        end
+      end
+    end
+
+まず、指定したディレクトリ(@root)以下にある*.rbのファイルを探します。そしてその更新時刻を調べ、新しいファイルを見つけたらその内容や時刻をwriteします。
+これは実際には以下のようなデータを書き込んでいます。
+
+    @drip.write(
+      ["sample/demo4book/index.rb", 2011-08-23 23:50:44 +0100, "ファイルの中身"], 
+      "rbcrowl", "rbcrowl-fname=sample/demo4book/index.rb"
+    )
+
+値はファイル名、時刻、ファイルの中身からなる配列で、それに対して二つのタグがついています。
+
+クロウラは60秒置きに更新を調べるようになっています。標準入力からなにか入力すると、更新の合間を待ってから終了します。一回の処理で見つけたファイル名の配列を'rbcrowl-footprint'というタグをつけて覚えておきます。
+以下のようなデータを書き込みます。
+    
+    @drip.write(["sample/demo4book/index.rb"], 'rbcrowl-footprint')
+    
+このバージョンのクロウラはファイルの削除を追いかけませんが、この足跡情報を使えば削除を知ることができるかもしれません。
+
+更新されたか否かは、headメソッドで一つ前のバージョンを探し比較して検査します。
+
+[咳さんへ："olderメソッドで"とあったのですが、 コードの中ではheadしか使っていなかったので言い換えておきました]
+
+
+'rbcrowl-fname=ファイル名'というタグでheadすることで、直前のバージョンを調べることができます。
+
+    k, v = @drip.head(1, "rbcrowl-fname=sample/demo4book/index.rb")[0]
 
 ***インデクサ
 
 このインデクサは索引の作成、更新と、検索そのものも提供します。指定した単語を含んでいるファイルの名前を返します。このサンプルは実験用のミニチュアなので、インメモリに索引を作ることにしました。rbtreeが必要ですが、Dripが動いているならrbtreeはインストールされていると思います。
-インデクサはDripから'rbcrowl'タグのついたオブジェクトを取り出し、その都度、索引を更新します。インデクサにとってrbcrowlタグのオブジェクトは更新イベントであると同時に文書でもあります。
+
+    class Indexer
+      def initialize(cursor=0)
+        @drip = MyDrip
+        @dict = Dict.new
+        k, = @drip.head(1, 'rbcrowl-begin')[0]
+        @fence = k || 0
+        @cursor = [cursor, @fence].max
+      end
+      attr_reader :dict
+
+      def update_dict
+        each_document do |cur, prev|
+          @dict.delete(*prev) if prev
+          @dict.push(*cur)
+        end
+      end
+
+      def each_document
+        while true
+          ary = @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
+          ary.each do |k, v|
+            prev = prev_version(k, v[0])
+            yield(v, prev)
+            @cursor = k
+          end
+        end
+      end
+
+      def prev_version(cursor, fname)
+        k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+        (v && k > @fence) ? v : nil
+      end
+    end
+
+インデクサはDripから'rbcrowl'タグのついたオブジェクトを取り出し、その都度、索引を更新します。
+
+    @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
+
+第４匹数の「1」に注目して下さい。先ほど「keyより新しい要素の数がatleast個に満たない場合は、新しいデータが追加されるまでブロックします」と説明したのを覚えていますか？
+ここでcrawlerがrbcrowlタグのデータを挿入するのをブロックしながら待ち合わせている事になります。
+
+インデクサにとってrbcrowlタグのオブジェクトは更新イベントであると同時に文書でもあります。
 旧いバージョンの文書があった場合、まず旧い内容を使って索引を削除して、新しい内容で索引を追加します。
 
-インデクサは起動されるとスレッドを生成してサブスレッドでDripからのread_tagと索引づけを行います。メインスレッドではユーザーからの入力を待ち、入力されるとその単語を探して検索結果を印字します。起動してすぐはまだ索引が完全でないので、急いでなんども検索すると索引対象が増えていく様子を見られるかもしれません。
+    def update_dict
+      each_document do |cur, prev|
+        @dict.delete(*prev) if prev
+        @dict.push(*cur)
+      end
+    end
 
+インデクサは起動されるとスレッドを生成してサブスレッドでDripからのread_tagと索引づけを行います。
+
+    indexer ||= Indexer.new(0)
+    Thread.new do
+      indexer.update_dict
+    end
+
+メインスレッドではユーザーからの入力を待ち、入力されるとその単語を探して検索結果を印字します。
+
+    while line = gets
+      ary = indexer.dict.query(line.chomp)
+      pp ary
+      pp ary.size
+    end
 
 ***フェンスと足跡
 
@@ -606,5 +794,90 @@ Dripはストレージに関する一連の習作の経験から、「作りす�
 具体的にはolderやheadの際にそのキーをチェックして、@fenceよりも旧かったら無視することにします。
 
 インデクサが索引を二次記憶に書くようになると、プロセスの寿命と索引の寿命が異なるようになります。このような状況にはしばしば出会うと思います。このとき、インデクサが処理を進めたポイントに足跡となるオブジェクトを残すことで、次回の起動に備えることができます。先のフェンスは無効となるポイントを示しましたが、この場合の足跡はまだ処理していないポイントを示すことになります。
+
+### RBTree
+
+ここまではcrawlerとindexerがDripのタグや待ち合わせ機能をつかって、どのように新しい文章をインデックスに更新させるかについて説明してきました。
+でも実際の検索用インデックスがどのように作られているかにも興味ありませんか？
+
+ここでちょっとインデックスの中身を覗いてみましょう。先ほどのwhileループの前に以下の一文を入れて、index.rbをもう一度起動してみましょう。
+
+    DRb.start_service('druby://:12345', indexer.dict.instance_variable_get(:@tree))
+    while line = gets
+
+indexerの中にある@treeという検索辞書をDRbでサービスとして公開してみました。
+
+そして新しいターミナルを立ち上げ、先ほどのDRbにつなげて見ましょう。
+
+    $irb -r drb
+    ruby-1.9.2-p0 >DRb.start_service
+    ruby-1.9.2-p0 > @tree = DRbObject.new_with_uri('druby://:12345')
+    ruby-1.9.2-p0 > @tree.bound(['def', 0, ''], ['def' + "\0", 0, ''])[0..3].each{|a| p a}
+    [["def", 1313396886, "sample/drip_s.rb"], true]
+    [["def", 1313734914, "lib/drip.rb"], true]
+    [["def", 1313734914, "lib/my_drip.rb"], true]
+    [["def", 1313734914, "sample/copocopo.rb"], true]
+     => [[["def", 1313396886, "sample/drip_s.rb"], true], 
+
+[単語、タイムスタンプ、ファイル名]の配列がキーに、そしてtrueが値として格納されているのが見て取れますね。。
+
+@treeはRBTreeというクラスのオブジェクトです。RBTreeはRed-Black Treeという二本木の一種のデータ構造を用いて作られた、ソート可能な連想配列です。
+
+以下のようにRubyのハッシュと非常に似たインターフェースを持っています。
+
+    ruby-1.9.2-p0 > @tree = RBTree.new
+     => #<RBTree: {}, default=nil, cmp_proc=nil> 
+    ruby-1.9.2-p0 > @tree['aaa'] = 1
+     => 1 
+    ruby-1.9.2-p0 > @tree['aaa']
+     => 1 
+    ruby-1.9.2-p0 > @tree.delete('aaa')
+     => 1 
+    ruby-1.9.2-p0 > @tree
+     => #<RBTree: {}, default=nil, cmp_proc=nil> 
+
+しかしながらRBTreeがハッシュと違う点はboundというメソッドで上限で下限を設定したレンジ検索もできることです。
+
+    ruby-1.9.2-p0 >  @tree['aaa'] = 1
+    ruby-1.9.2-p0 >  @tree['abb'] = 2
+    ruby-1.9.2-p0 > @tree['ccc'] = 3
+    ruby-1.9.2-p0 > @tree
+     => #<RBTree: {"aaa"=>1, "abb"=>2, "ccc"=>3}, default=nil, cmp_proc=nil> 
+    ruby-1.9.2-p0 > @tree.bound('a', 'b')
+     => [["aaa", 1], ["abb", 2]]
+
+
+    def query(word)
+      synchronize do
+        @tree.bound([word, 0, ''], [word + "\0", 0, '']).collect {|k, v| k[2]}
+      end
+    end
+
+[咳さんへ：ここの説明もう少し詳しくしていただけますか？たぶん０や''だと全てにマッチするという意味だと思うのですが自身がないです] 
+ 
+
+このような辞書を通常のハッシュで表した場合、以下のように表す事ができるかもしれません。
+
+    {
+    　"def" =>["lib/drip.rb", "lib/foo.rb", "lib/bar.rb"],
+    　"bar" =>["lib/drip.rb", "lib/foo.rb", "lib/bar.rb"]
+    }
+
+しかしながらこれだと値の配列に新しいファイル名を挿入や削除する時、すでに同じファイルが存在するかどうか調べるために値配列を全検索する必要があります。
+これが先ほどのような配列をキーとしたRBTreeを使うと、レンジ検索をしつつも挿入や削除する時には一発で該当するキーを探し当てる事ができることになります。
+
+    @tree.delete(['def', 'lib/bar.rb'])
+
+このように便利なRBTree、実はDripの内部でも使われています。
+
+[咳さんへ：タグの検索に使われているようですが、RBTreeとからめたDripのソースコードの解説も付け加える事は可能ですか？] 
+
+Rindaの場合は強力なパターンマッチと引き換えに、あまり配列を基本としたデータ構造を内部で使っていたため、
+データ量に比例して検索時間が増加する(O(N))という問題がありました。Dripの場合はRBTreeを使う事でtagやkeyの開始点まで比較的素早くブラウズが可能になっています。
+(O(log n))
+
+このデータ構造のおかげで「消えないキュー」「いらなくなったら'rbcrowl-begin'でリセット」といった、一見富豪的なデータストアレージが可能になっています。
+
+[咳さんへ：非常に憶測で書いています。まちがっていたら消して下さい]
 
 
