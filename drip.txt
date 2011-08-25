@@ -754,9 +754,20 @@ Dripはストレージに関する一連の習作の経験から、「作りす�
 
 インデクサはDripから'rbcrowl'タグのついたオブジェクトを取り出し、その都度、索引を更新します。
 
+    @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
+
+第４匹数の「1」に注目して下さい。先ほど「keyより新しい要素の数がatleast個に満たない場合は、新しいデータが追加されるまでブロックします」と説明したのを覚えていますか？
+ここでcrawlerがrbcrowlタグのデータを挿入するのをブロックしながら待ち合わせている事になります。
 
 インデクサにとってrbcrowlタグのオブジェクトは更新イベントであると同時に文書でもあります。
 旧いバージョンの文書があった場合、まず旧い内容を使って索引を削除して、新しい内容で索引を追加します。
+
+    def update_dict
+      each_document do |cur, prev|
+        @dict.delete(*prev) if prev
+        @dict.push(*cur)
+      end
+    end
 
 インデクサは起動されるとスレッドを生成してサブスレッドでDripからのread_tagと索引づけを行います。
 
@@ -766,6 +777,12 @@ Dripはストレージに関する一連の習作の経験から、「作りす�
     end
 
 メインスレッドではユーザーからの入力を待ち、入力されるとその単語を探して検索結果を印字します。
+
+    while line = gets
+      ary = indexer.dict.query(line.chomp)
+      pp ary
+      pp ary.size
+    end
 
 ***フェンスと足跡
 
