@@ -4,6 +4,7 @@ require 'my_drip'
 require 'monitor'
 require 'pp'
 
+
 class Indexer
   def initialize(cursor=0)
     @drip = MyDrip
@@ -14,9 +15,11 @@ class Indexer
   end
   attr_reader :dict
 
-  def prev_version(cursor, fname)
-    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
-    (v && k > @fence) ? v : nil
+  def update_dict
+    each_document do |cur, prev|
+      @dict.delete(*prev) if prev
+      @dict.push(*cur)
+    end
   end
 
   def each_document
@@ -29,12 +32,10 @@ class Indexer
       end
     end
   end
-  
-  def update_dict
-    each_document do |cur, prev|
-      @dict.delete(*prev) if prev
-      @dict.push(*cur)
-    end
+
+  def prev_version(cursor, fname)
+    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+    (v && k > @fence) ? v : nil
   end
 end
 
