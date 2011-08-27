@@ -197,15 +197,30 @@ class Drip
     end
 
     Dir.mkdir(dir) rescue nil
+    dump = Dir.glob(File.join(dir, '*.dump')).max_by do |fn| 
+      File.basename(fn).to_i(36)
+    end
+    if dump
+      @pool, @tag, last = File.open(dump, 'rb') {|fp| Marshal.load(fp)}
+      @event.take([:last, nil])
+      @event.write([:last, last])
+      File.unlink(dump)
+    end
+    loaded = dump ? File.basename(dump).to_i(36) : 0
     Dir.glob(File.join(dir, '*.log')) do |fn|
+      next if loaded > File.basename(fn).to_i(36)
       begin
         store = SimpleStore.reader(fn)
         restore(store)
       rescue
       end
     end
-    name = time_to_key(Time.now).to_s(36) + '.log'
-    @store = SimpleStore.new(File.join(dir, name))
+    name = time_to_key(Time.now).to_s(36)
+    _, last = @event.read([:last, nil])
+    File.open(File.join(dir, name + '.dump'), 'wb') {|fp|
+      Marshal.dump([@pool, @tag, last], fp)
+    }
+    @store = SimpleStore.new(File.join(dir, name + '.log'))
   end
 
   def shared_text(str)
