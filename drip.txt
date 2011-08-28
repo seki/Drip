@@ -830,11 +830,20 @@ end
 @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
 ||<
 
-第４引数の「1」に注目して下さい。先ほど「keyより新しい要素の数がat_least個に満たない場合は、新しいデータが追加されるまでブロックします」と説明したのを覚えていますか？
-ここでcrawlerがrbcrowlタグのデータを挿入するのをブロックしながら待ち合わせている事になります。
+第4引数の「1」に注目して下さい。先ほど「keyより新しい要素の数がat_least個に満たない場合は、新しいデータが追加されるまでブロックします」と説明したのを覚えていますか？一度に10個ずつ、最低でも1個ずつ返せ、という指示ですから返せる要素が一つもないときにはブロックします。
+これによりクロウラが'rbcrowl'タグのデータを挿入するのをブロックしながら待ち合わせている事になります。
 
-インデクサにとってrbcrowlタグのオブジェクトは更新イベントであると同時に文書でもあります。
-旧いバージョンの文書があった場合、まず旧い内容を使って索引を削除して、新しい内容で索引を追加します。
+インデクサにとってrbcrowlタグのオブジェクトは更新イベントであると同時に文書でもあります。更新されたファイル名、更新時刻、内容がまとめて手に入ります。
+また、DripはQueueとちがい、すでに読んだ要素を再び読むことが可能です。注目点の直前の要素を調べるolderなどで調べることが可能です。
+
+>|ruby|
+def prev_version(cursor, fname)
+  k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+  (v && k > @fence) ? v : nil
+end
+||<
+
+通知されたファイルに旧いバージョンの文書があった場合、インデクサは旧い内容を使って索引を削除してから、新しい内容で索引を追加します。
 
 >|ruby|
 def update_dict
@@ -847,20 +856,32 @@ end
 
 インデクサは起動されるとスレッドを生成してサブスレッドでDripからのread_tagと索引づけを行います。
 
+>|ruby|
 indexer ||= Indexer.new(0)
 Thread.new do
   indexer.update_dict
 end
+||<
 
 メインスレッドではユーザーからの入力を待ち、入力されるとその単語を探して検索結果を印字します。
 
-<<<<<<< HEAD
+>|ruby|
+while line = gets
+  ary = indexer.dict.query(line.chomp)
+  pp ary
+  pp ary.size
+end
+||<
+
+以下に完全なインデクサを載せます。
+
 >|ruby|
 require 'nkf'
 require 'rbtree'
 require 'my_drip'
 require 'monitor'
 require 'pp'
+
 
 class Indexer
   def initialize(cursor=0)
@@ -872,9 +893,11 @@ class Indexer
   end
   attr_reader :dict
 
-  def prev_version(cursor, fname)
-    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
-    (v && k > @fence) ? v : nil
+  def update_dict
+    each_document do |cur, prev|
+      @dict.delete(*prev) if prev
+      @dict.push(*cur)
+    end
   end
 
   def each_document
@@ -887,12 +910,10 @@ class Indexer
       end
     end
   end
-  
-  def update_dict
-    each_document do |cur, prev|
-      @dict.delete(*prev) if prev
-      @dict.push(*cur)
-    end
+
+  def prev_version(cursor, fname)
+    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+    (v && k > @fence) ? v : nil
   end
 end
 
@@ -950,17 +971,10 @@ while line = gets
 end
 ||<
 
-=======
-    while line = gets
-      ary = indexer.dict.query(line.chomp)
-      pp ary
-      pp ary.size
-    end
->>>>>>> 75a83b4a50418435ffed2c6e705b9a2aba9cc0ac
 
 ***フェンスと足跡
 
-実験を繰り返していると、なんとなく最初の状態からやり直したくなるかもしれません。Dripのデータベースを作り直せばやりなおせますが、でもMyDripはこのアプリケーション以外からも雑多な情報をwriteされているでそれは抵抗がありますよね。
+実験を繰り返していると、最初の状態からやり直したくなることがあるでしょう。Dripのデータベースを作り直せばやりなおせますが、でもMyDripはこのアプリケーション以外からも雑多な情報をwriteされているでそれは抵抗がありますよね。
 そこでこのアプリケーションの始まりの点を閉めすオブジェクトを導入することに。'rbcrowl-begin'というタグを持つオブジェクトがあるときは、それよりも旧い情報を無視することで、それ以前のオブジェクトに影響されずに実験できます。@fenceはクロウラ、インデクサのどちらでも使っているので読んでみて下さい。
 具体的にはolderやheadの際にそのキーをチェックして、@fenceよりも旧かったら無視することにします。
 
@@ -971,89 +985,138 @@ end
 
 インデクサが索引を二次記憶に書くようになると、プロセスの寿命と索引の寿命が異なるようになります。このような状況にはしばしば出会うと思います。このとき、インデクサが処理を進めたポイントに足跡となるオブジェクトを残すことで、次回の起動に備えることができます。先のフェンスは無効となるポイントを示しましたが、この場合の足跡はまだ処理していないポイントを示すことになります。
 
-### RBTree
+
+***RBTree
 
 ここまではcrawlerとindexerがDripのタグや待ち合わせ機能をつかって、どのように新しい文章をインデックスに更新させるかについて説明してきました。
 でも実際の検索用インデックスがどのように作られているかにも興味ありませんか？
 
-ここでちょっとインデックスの中身を覗いてみましょう。先ほどのwhileループの前に以下の一文を入れて、index.rbをもう一度起動してみましょう。
+先に示したインデクサはRBTreeという拡張ライブラリを利用しています。RBTreeは赤黒木という検索に適した二分木のデータ構造とアルゴリズムを提供します。RubyのTreeではなく、red-black treeの略と思われます。Hashはハッシュ関数という魔法の関数を用意して、キーとなるオブジェクトからハッシュ値へ変換し、値を探します。RBTreeでは常にソート済みの列（実装は木だけど、木としてアクセスするAPIは用意されない）を準備しておき、二分探索を使って値を探します。「並んでいる」という性質を利用するといろいろおもしろいことができます。
 
-    DRb.start_service('druby://:12345', indexer.dict.instance_variable_get(:@tree))
-    while line = gets
+本の索引を見て下さい。単語ごとにそれが出現する場所（本ならページ番号）が複数並んでいますよね。Hashで実装すると、ほぼこのままに表現できます。
 
-indexerの中にある@treeという検索辞書をDRbでサービスとして公開してみました。
+>|ruby|
+class Dict
+  def initialize
+    @hash = Hash.new {|h, k| h[k] = Array.new}
+  end
 
-そして新しいターミナルを立ち上げ、先ほどのDRbにつなげて見ましょう。
+  def push(fname, words)
+    words.each {|w| @hash[w] << fname}
+  end
 
-    $irb -r drb
-    ruby-1.9.2-p0 >DRb.start_service
-    ruby-1.9.2-p0 > @tree = DRbObject.new_with_uri('druby://:12345')
-    ruby-1.9.2-p0 > @tree.bound(['def', 0, ''], ['def' + "\0", 0, ''])[0..3].each{|a| p a}
-    [["def", 1313396886, "sample/drip_s.rb"], true]
-    [["def", 1313734914, "lib/drip.rb"], true]
-    [["def", 1313734914, "lib/my_drip.rb"], true]
-    [["def", 1313734914, "sample/copocopo.rb"], true]
-     => [[["def", 1313396886, "sample/drip_s.rb"], true], 
+  def query(word, &blk)
+    @hash[word].each(&blk)
+  end
+end
 
-[単語、タイムスタンプ、ファイル名]の配列がキーに、そしてtrueが値として格納されているのが見て取れますね。。
+dict = Dict.new
+dict.push('lib/drip.rb', ['def', 'Drip'])
+dict.push('lib/foo.rb', ['def'])
+dict.push('lib/bar.rb', ['def', 'bar', 'Drip'])
+dict.query('def') {|x| puts x}
+||<
 
-@treeはRBTreeというクラスのオブジェクトです。RBTreeはRed-Black Treeという二本木の一種のデータ構造を用いて作られた、ソート可能な連想配列です。
+ファイルが更新されたあとに行われる、二巡目の索引処理ではどうでしょう。
+旧くなった索引の削除や新しい索引の登録にはHashの中のArrayを全て読まなくてはなりません。これに対応するには、内側のArrayをHashにすれば効率よくなります。
 
-以下のようにRubyのハッシュと非常に似たインターフェースを持っています。
+>|ruby|
+class Dict2
+  def initialize
+    @hash = Hash.new {|h, k| h[k] = Hash.new}
+  end
 
-    ruby-1.9.2-p0 > @tree = RBTree.new
-     => #<RBTree: {}, default=nil, cmp_proc=nil> 
-    ruby-1.9.2-p0 > @tree['aaa'] = 1
-     => 1 
-    ruby-1.9.2-p0 > @tree['aaa']
-     => 1 
-    ruby-1.9.2-p0 > @tree.delete('aaa')
-     => 1 
-    ruby-1.9.2-p0 > @tree
-     => #<RBTree: {}, default=nil, cmp_proc=nil> 
+  def push(fname, words)
+    words.each {|w| @hash[w][fname] = true}
+  end
 
-しかしながらRBTreeがハッシュと違う点はboundというメソッドで上限で下限を設定したレンジ検索もできることです。
+  def query(word)
+    @hash[word].each {|k, v| yield(k)}
+  end
+end
+||<
 
-    ruby-1.9.2-p0 >  @tree['aaa'] = 1
-    ruby-1.9.2-p0 >  @tree['abb'] = 2
-    ruby-1.9.2-p0 > @tree['ccc'] = 3
-    ruby-1.9.2-p0 > @tree
-     => #<RBTree: {"aaa"=>1, "abb"=>2, "ccc"=>3}, default=nil, cmp_proc=nil> 
-    ruby-1.9.2-p0 > @tree.bound('a', 'b')
-     => [["aaa", 1], ["abb", 2]]
+入れ子のHashのキーを使って索引を表現することができました。値は使い途がなくなってしまったところが興味深いです。入れ子のHashはなんだかツリー構造みたいですね。
 
+RBTreeもHashと同様のAPIを提供していますから、上記のHashをRBTreeに置き換えて索引を表現することも可能ですが、もっとRBTreeらしい作戦を紹介します。
+二つ目のHashの例では入れ子のHashのキーを使いましたが、これをもう少し発展させましょう。単語と出現場所（ファイル名）をキーとします。入れ子のHashが組み立てていたツリー構造をフラットにしたようなもの、と言えます。
 
-    def query(word)
-      synchronize do
-        @tree.bound([word, 0, ''], [word + "\0", 0, '']).collect {|k, v| k[2]}
+>|ruby|
+require 'rbtree'
+
+class Dict3
+  def initialize
+    @tree = RBTree.new
+  end
+
+  def push(fname, words)
+    words.each {|w| @tree[[w, fname]] = true}
+  end
+
+  def query(word)
+    @tree.bound([word, ''], [word + "\0", '']) {|k, v| yield(k[1])}
+  end
+end
+||<
+
+queryメソッドで使用しているboundは、二つのキーの内側にある要素を調べるメソッドです。lowerとupperを指定します。
+ある単語を含むキーの最小値と、ある単語を含むキーの最大値を指定すれば、その単語の索引が手に入りますね。最小値は、一つ目の要素が対象の単語で、二つ目の要素が最も小さな文字列、つまり''で構成された配列です。では最も大きな文字列（何と比較しても大きい文字列）はなんでしょう。ちょっと思いつきませんね。代わりに「目的の単語の直後の単語を含むキーの最小値」を使います。RubyのStringには"\0"を含めることができますから、ある文字列よりも大きい最小の文字列は "\0" を連結したものと言えます。ちょっとトリッキーですね。そういう汚いものはメソッドに隠してしまいましょう。
+
+>|ruby|
+  def query(word)
+    @tree.bound([word, ''], [word + "\0", '']) {|k, v| yield(k[1])}
+  end
+||<
+
+この例では単語の出現場所の識別子はファイル名です。先ほどのインデクサではドキュメントのIDとしてファイルの更新時刻とファイル名を用いました。さらに出現した行の番号を覚えたらどうなるか、などいろいろなバリエーションを想像してキーを考えるのも楽しいでしょう。
+
+boundの仲間にはlower_bound、upper_boundというバリエーションもあります。狙ったキーの直前、直後（そのキーを含みます。以上、以下みたいな感じ。）などを調べられます。並んでいるキーとlower_boundを使ってand検索やor検索も効率よく行えます。次のコード片はand検索を行うものです。二つのカーソルを使い、カーソルが一致したときがand成功、カーソルが異なる場合には後側の単語のカーソルを先行する単語のカーソルの点からlower_boundさせます。これを繰り返すと、スキップしながらand検索が可能です。
+
+>|ruby|
+  def fwd(w1, fname)
+    k, v = @tree.lower_bound([w1, fname])
+    return nil unless k
+    return nil unless k[0] == w1
+    k[1]
+  end
+
+  def query2(w1, w2)
+    f1 = fwd(w1, '')
+    f2 = fwd(w2, '')
+    while f1 && f2
+      if f1 > f2
+        f2 = fwd(w2, f1)
+      elsif f2 > f1
+        f1 = fwd(w1, f2)
+      else
+        yield(f1)
+        f1 = fwd(w1, f1 + "\0")
+        f2 = fwd(w2, f2 + "\0")
       end
     end
+  end
+||<
 
-[咳さんへ：ここの説明もう少し詳しくしていただけますか？たぶん０や''だと全てにマッチするという意味だと思うのですが自身がないです] 
- 
+順序のあるデータ構造、RBTreeは、実はDripの内部でも使われています。基本となるのはDripのキー（整数のキー）をそのまま使う集合です。もう一つ、タグのための集合にもRBTreeを使っています。この集合は[タグ(String), キー(Integer)]という配列をキーにします。
 
-このような辞書を通常のハッシュで表した場合、以下のように表す事ができるかもしれません。
+>||
+['rbcrowl-begin', 100030]
+['rbcrowl-begin', 103030]
+['rbcrowl-fname=a.rb', 1000000]
+['rbcrowl-fname=a.rb', 1000020]
+['rbcrowl-fname=a.rb', 1000028]
+['rbcrowl-fname=a.rb', 1000100]
+['rbcrowl-fname=b.rb', 1000005]
+['rbcrowl-fname=b.rb', 1000019]
+['rbcrowl-fname=b.rb', 1000111]
+||<
 
-    {
-    　"def" =>["lib/drip.rb", "lib/foo.rb", "lib/bar.rb"],
-    　"bar" =>["lib/drip.rb", "lib/foo.rb", "lib/bar.rb"]
-    }
+これなら、'rbcrowl-begin'をもつ最新のキーや、注目点直前の'rbcrowl-fname=a.rb'のキーなどが二分探索のコストで探せます。
 
-しかしながらこれだと値の配列に新しいファイル名を挿入や削除する時、すでに同じファイルが存在するかどうか調べるために値配列を全検索する必要があります。
-これが先ほどのような配列をキーとしたRBTreeを使うと、レンジ検索をしつつも挿入や削除する時には一発で該当するキーを探し当てる事ができることになります。
-
-    @tree.delete(['def', 'lib/bar.rb'])
-
-このように便利なRBTree、実はDripの内部でも使われています。
-
-[咳さんへ：タグの検索に使われているようですが、RBTreeとからめたDripのソースコードの解説も付け加える事は可能ですか？] 
-
-Rindaの場合は強力なパターンマッチと引き換えに、あまり配列を基本としたデータ構造を内部で使っていたため、
-データ量に比例して検索時間が増加する(O(N))という問題がありました。Dripの場合はRBTreeを使う事でtagやkeyの開始点まで比較的素早くブラウズが可能になっています。
-(O(log n))
+Rindaの場合は強力なパターンマッチと引き換えに、Arrayを基本としたデータ構造を内部で使っていたため、データ量に比例して検索時間が増加する(O(N))という問題がありました。Dripの場合はRBTreeを使う事でtagやkeyの開始点まで比較的素早くブラウズが可能になっています。(O(log n))
 
 このデータ構造のおかげで「消えないキュー」「いらなくなったら'rbcrowl-begin'でリセット」といった、一見富豪的なデータストアレージが可能になっています。
 
-[咳さんへ：非常に憶測で書いています。まちがっていたら消して下さい]
+
 
 
