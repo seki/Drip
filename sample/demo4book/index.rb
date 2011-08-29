@@ -9,7 +9,7 @@ class Indexer
   def initialize(cursor=0)
     @drip = MyDrip
     @dict = Dict.new
-    k, = @drip.head(1, 'rbcrowl-begin')[0]
+    k, = @drip.head(1, 'rbcrawl-begin')[0]
     @fence = k || 0
     @cursor = [cursor, @fence].max
   end
@@ -24,7 +24,7 @@ class Indexer
 
   def each_document
     while true
-      ary = @drip.read_tag(@cursor, 'rbcrowl', 10, 1)
+      ary = @drip.read_tag(@cursor, 'rbcrawl', 10, 1)
       ary.each do |k, v|
         prev = prev_version(k, v[0])
         yield(v, prev)
@@ -34,7 +34,7 @@ class Indexer
   end
 
   def prev_version(cursor, fname)
-    k, v = @drip.older(cursor, 'rbcrowl-fname=' + fname)
+    k, v = @drip.older(cursor, 'rbcrawl-fname=' + fname)
     (v && k > @fence) ? v : nil
   end
 end
