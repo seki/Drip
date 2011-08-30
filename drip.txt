@@ -770,16 +770,18 @@ class Crawler
   end
 end
 
-crawler = Crawler.new
-Thread.new do
-  while true
-    pp crawler.do_crawl
-    sleep 60
+if __FILE__ == $0
+  crawler = Crawler.new
+  Thread.new do
+    while true
+      pp crawler.do_crawl
+      sleep 60
+    end
   end
-end
 
-gets
-crawler.quit
+  gets
+  crawler.quit
+end
 ||<
 
 
@@ -959,15 +961,17 @@ class Dict
   end
 end
 
-indexer ||= Indexer.new(0)
-Thread.new do
-  indexer.update_dict
-end
+if __FILE__ == $0
+  indexer ||= Indexer.new(0)
+  Thread.new do
+    indexer.update_dict
+  end
 
-while line = gets
-  ary = indexer.dict.query(line.chomp)
-  pp ary
-  pp ary.size
+  while line = gets
+    ary = indexer.dict.query(line.chomp)
+    pp ary
+    pp ary.size
+  end
 end
 ||<
 
@@ -1130,6 +1134,109 @@ boundの場合、その範囲に入っている要素の数が大きいとき、
 Rindaの場合は強力なパターンマッチと引き換えに、Arrayを基本としたデータ構造を内部で使っていたため、データ量に比例して検索時間が増加する(O(N))という問題がありました。Dripの場合はRBTreeを使う事でtagやkeyの開始点まで比較的素早くブラウズが可能になっています。(O(log n))
 
 このデータ構造のおかげで「消えないキュー」「いらなくなったら'rbcrawl-begin'でリセット」といった、一見富豪的なデータストレージが可能になっています。
+
+
+***まとめにかえて
+
+この章の最後に、この小さな検索システムにERBの章で見せたようなWeb UIを追加してみましょう。この検索システムはクロウラとインデクサ、そしてミドルウェアのDripで構成されていました。ここにWeb UIを実現するWEBrick::CGIサーバが追加されます。
+こんなにたくさんのプロセスを起動するのは面倒ですよね。そこで、クロウラ、インデクサ、Web UIを一つのプロセスに配置することにしましょう。dRubyを使って作ったシステムは、もともとプロセスの境界はRubyそっくりにできています。このためプロセス構成、オブジェクトの配置を変更するのは意外と簡単です。全部を一つに入れた完成版のスクリプトを次ぎに示します。ERBの章やdRubyの章を思い出しながら読んで下さい。
+
+>|ruby|
+require 'index'
+require 'crawl'
+require 'webrick/cgi'
+require 'erb'
+
+class DemoListView
+  include ERB::Util
+  extend ERB::DefMethod
+  def_erb_method('to_html(word, list)', ERB.new(<<EOS))
+<html><head><title>Demo UI</title></head><body>
+<form method="post"><input type="text" name="w" value="<%=h word %>" /></form>
+<% if word %>
+<p>search: <%=h word %></p>
+<ul>
+<%   list.each do |fname| %>
+<li><%=h fname%></li>
+<%   end %>
+</ul>
+<% end %>
+</body></html>
+EOS
+end
+
+class DemoUICGI < WEBrick::CGI
+  def initialize(crawler, indexer, *args)
+    super(*args)
+    @crawler = crawler
+    @indexer = indexer
+    @list_view = DemoListView.new
+  end
+
+  def req_query(req, key)
+    value ,= req.query[key]
+    return nil unless value
+    value.force_encoding('utf-8')
+    value
+  end
+
+  def do_GET(req, res)
+    if req.path_info == '/quit'
+      Thread.new do
+        @crawler.quit
+      end
+    end
+    word = req_query(req, 'w') || ''
+    list = word.empty? ? [] : @indexer.dict.query(word)
+    res['content-type'] = 'text/html; charset=utf-8'
+    res.body = @list_view.to_html(word, list)
+  end
+  
+  alias do_POST do_GET
+end
+
+if __FILE__ == $0
+  crawler = Crawler.new
+  Thread.new do
+    while true
+      crawler.do_crawl
+      sleep 60
+    end
+  end
+
+  indexer = Indexer.new
+  Thread.new do
+    indexer.update_dict
+  end
+  
+  cgi = DemoUICGI.new(crawler, indexer)
+  DRb.start_service('druby://localhost:50830', cgi)
+  DRb.thread.join
+end
+||<
+
+あたらしいクラスは二つです。一つはDemoUICGIで、CGIサーバの主処理を司ります。もう一つはDemoListViewクラス、CGIの見た目を生成するViewオブジェクトです。
+「if __FILE__ == $0」で囲まれたメイン部を見てみます。ここではcrawl.rbやindex.rbのメイン部で行っていたサブスレッドの生成のあと、CGIサーバを起動しています。"/quit"へのアクセスがあるとこのサーバはクロウラの仕事の合間に終了します。なお、この時点で終了してしまうので正しいレスポンスは返しません。
+
+実際にWebサーバから起動されるCGIスクリプトはいつものように次の5行です。
+
+>|ruby|
+#!/usr/local/bin/ruby
+require 'drb/drb'
+DRb.start_service('druby://localhost:0')
+ro = DRbObject.new_with_uri('druby://localhost:50830')
+ro.start(ENV.to_hash, $stdin, $stdout)
+||<
+
+このようにWebサーバと本当のCGIの助けを借りなくても、WEBrickのHTTPサーバを利用するというのもよいでしょう。
+
+クロウラとインデクサが一つプロセスでは、Dripの意味がないのではないか？という気がしなくもないですが、デスクトップのアプリケーションのように起動は簡単になりました。関連するプロセスが少ないのでデーモン化するのも楽です。ところで、プロセス間でオブジェクトの配置を変えるのは簡単でしたよね。このプロセス構成が気に入らなければ、クロウラとインデクサを分けるようなプロセス構成にすることも簡単です。
+
+Dripの章の最後に、久しぶりにdRubyをERBを使って小さなシステムを組み立てました。dRuby、ERB、Rinda、Dripなどの私のライブラリは、あなたの手の中にある問題をあなた自身が解くのを支援できるように意図して作りました。どれも仕組みは単純でおもちゃみたいなライブラリですが、とても手軽にはじめることができます。
+本当に大きな問題、たとえばメインメモリにも一つのマシンのディスクにも入りきらないようなデータを扱ったり、無数のクライアントを本当に同時にハンドリングしたり、そういうのには向かないかもしれませんが、自分のPCや家庭のネットワークにあるようなあなたのデータをつかってミニチュアを書くのにはぴったりなツール群です。この本で紹介したライブラリやその考え方があなたのデザインのバリエーションを増やすことになれば、本当にうれしいことです。
+
+おしまい
+
 
 
 
