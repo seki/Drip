@@ -81,15 +81,16 @@ class Dict
   end
 end
 
-indexer ||= Indexer.new(0)
-Thread.new do
-  indexer.update_dict
+if __FILE__ == $0
+  indexer ||= Indexer.new(0)
+  Thread.new do
+    indexer.update_dict
+  end
+  
+  while line = gets
+    ary = indexer.dict.query(line.chomp)
+    pp ary
+    pp ary.size
+  end
 end
-
-while line = gets
-  ary = indexer.dict.query(line.chomp)
-  pp ary
-  pp ary.size
-end
-
 

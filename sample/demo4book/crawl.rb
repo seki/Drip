@@ -41,13 +41,16 @@ class Crawler
   end
 end
 
-crawler = Crawler.new
-Thread.new do
-  while true
-    pp crawler.do_crawl
-    sleep 60
+if __FILE__ == $0
+  crawler = Crawler.new
+  Thread.new do
+    while true
+      pp crawler.do_crawl
+      sleep 60
+    end
   end
+  
+  gets
+  crawler.quit
 end
 
-gets
-crawler.quit
