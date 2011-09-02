@@ -22,11 +22,11 @@ EOS
 end
 
 class DemoUIServlet < WEBrick::HTTPServlet::AbstractServlet
-  def initialize(server, crawler, indexer)
+  def initialize(server, crawler, indexer, list_view)
     super(server)
     @crawler = crawler
     @indexer = indexer
-    @list_view = DemoListView.new
+    @list_view = list_view
   end
 
   def req_query(req, key)
@@ -62,7 +62,7 @@ if __FILE__ == $0
 
   server = WEBrick::HTTPServer.new({:Port => 10080,
                                     :BindAddress => '127.0.0.1'})
-  server.mount('/', DemoUIServlet, crawler, indexer)
+  server.mount('/', DemoUIServlet, crawler, indexer, DemoListView.new)
   trap('INT') { server.shutdown }
   server.start
   crawler.quit
