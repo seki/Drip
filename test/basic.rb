@@ -158,4 +158,62 @@ class TestDripUsingStorage < TestDrip
     ary = drip.read(ary[2][0], 3)
     assert_equal(ary.size, 2)
   end
+
+  def ignore_test_huge
+    str = File.read(__FILE__)
+
+    10.times do 
+      1000.times do |n|
+        @drip.write(str, "n=#{n}")
+      end
+      @drip = Drip.new('test_db')
+    end
+
+    assert_equal(10000, @drip.read(0, 12000, 10000).size)
+  end
+end
+
+class TestImmutableDrip < Test::Unit::TestCase
+  def test_bsearch
+    im = Drip::ImmutableDrip.new
+
+    assert_equal(0, im.lower_boundary([], 'c'))
+    assert_equal(0, im.upper_boundary([], 'c'))
+
+    ary = %w(a b c c c d e f).collect {|x| [x]}
+
+    assert_equal(0, im.lower_boundary(ary, ''))
+    assert_equal(0, im.lower_boundary(ary, 'a'))
+    assert_equal(1, im.lower_boundary(ary, 'b'))
+    assert_equal(2, im.lower_boundary(ary, 'c'))
+    assert_equal(5, im.lower_boundary(ary, 'd'))
+    assert_equal(6, im.lower_boundary(ary, 'e'))
+    assert_equal(7, im.lower_boundary(ary, 'f'))
+    assert_equal(8, im.lower_boundary(ary, 'g'))
+
+    assert_equal(0, im.upper_boundary(ary, ''))
+    assert_equal(1, im.upper_boundary(ary, 'a'))
+    assert_equal(2, im.upper_boundary(ary, 'b'))
+    assert_equal(5, im.upper_boundary(ary, 'c'))
+    assert_equal(6, im.upper_boundary(ary, 'd'))
+    assert_equal(7, im.upper_boundary(ary, 'e'))
+    assert_equal(8, im.upper_boundary(ary, 'f'))
+    assert_equal(8, im.upper_boundary(ary, 'g'))
+  end
+
+  def test_fetch
+    ary = []
+    ary << [21, ['a']]
+    ary << [39, ['b']]
+    ary << [60, ['c']]
+    ary << [99, ['d']]
+    
+    im = Drip::ImmutableDrip.new(ary, [])
+    assert_equal(nil, im.fetch(20))
+    assert_equal(['a'], im.fetch(21))
+    assert_equal(nil, im.fetch(23))
+    assert_equal(['b'], im.fetch(39))
+    assert_equal(['d'], im.fetch(99))
+    assert_equal(nil,  im.fetch(990))
+  end
 end

@@ -7,6 +7,79 @@ class Drip
   include DRbUndumped
   def inspect; to_s; end
 
+  class ImmutableDrip
+    def initialize(pool=[], tag=[])
+      @pool = pool
+      @tag = tag
+    end
+
+    def fetch(key)
+      idx = lower_boundary(@pool, key)
+      k, v = @pool[idx]
+      k == key ? v.to_a : nil
+    end
+
+    def read(key, n=1)
+      idx = lower_boundary(@pool, key + 1)
+      return [] unless idx
+      @pool[idx, n].collect {|kv|
+        kv[0] + kv[1].to_a
+      }
+    end
+
+    def read_tag(key, tag, n=1)
+      idx = lower_boundary(@tag, [tag, key + 1])
+      return [] unless idx
+      @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
+        kv[0][1] + kv[1].to_a
+      }
+    end
+
+    def head(n=1, tag=nil)
+    end
+
+    def older(key, tag=nil)
+      return nil if @pool.empty?
+      key = @pool[-1][0] + 1 unless key
+      if tag
+      else
+        idx = upper_bound(@pool, key - 1)
+        kv = @pool[idx]
+      end
+    end
+
+    def newer()
+    end
+    
+    def lower_boundary(ary, key)
+      lower = -1
+      upper = ary.size
+      while lower + 1 != upper
+        mid = (lower + upper).div(2)
+        if key > ary[mid][0]
+          lower = mid
+        else
+          upper = mid
+        end
+      end
+      return upper
+    end
+    
+    def upper_boundary(ary, key)
+      lower = -1
+      upper = ary.size
+      while lower + 1 != upper
+        mid = (lower + upper).div(2)
+        if key >= ary[mid][0]
+          lower = mid
+        else
+          upper = mid
+        end
+      end
+      return lower + 1
+    end
+  end
+
   def initialize(dir, option={})
     @pool = RBTree.new
     @tag = RBTree.new
