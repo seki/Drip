@@ -8,6 +8,26 @@ class Drip
   def inspect; to_s; end
 
   class ImmutableDrip
+    class Generator
+      def initialize(pool=[], tag=[])
+        @pool = pool
+        @tag = tag
+      end
+
+      def add(key, value, *tag)
+        @pool << [key, value]
+        tag.uniq.each do |t|
+          @tag << [[t, key], value]
+        end
+      end
+      
+      def generate
+        ImmutableDrip.new(@pool.sort, @tag.sort)
+      end
+    end
+
+    INF = 1.0/0
+
     def initialize(pool=[], tag=[])
       @pool = pool
       @tag = tag
@@ -32,6 +52,15 @@ class Drip
       return [] unless idx
       @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
         kv[0][1] + kv[1].to_a
+      }
+    end
+
+    def head_tag(n, tag)
+      lower = lower_boundary(@tag, [tag, 0])
+      upper = upper_boundary(@tag, [tag, INF])
+      lower = [lower, upper - n].max
+      @tag[lower ... upper].collect {|kv|
+        [kv[0][1], *kv[1].to_a]
       }
     end
 
@@ -61,7 +90,7 @@ class Drip
       upper = ary.size
       while lower + 1 != upper
         mid = (lower + upper).div(2)
-        if key > ary[mid][0]
+        if (ary[mid][0] <=> key) < 0
           lower = mid
         else
           upper = mid
@@ -75,7 +104,7 @@ class Drip
       upper = ary.size
       while lower + 1 != upper
         mid = (lower + upper).div(2)
-        if key >= ary[mid][0]
+        if (ary[mid][0] <=> key) <= 0
           lower = mid
         else
           upper = mid

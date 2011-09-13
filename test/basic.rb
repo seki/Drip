@@ -201,14 +201,19 @@ class TestImmutableDrip < Test::Unit::TestCase
     assert_equal(8, im.upper_boundary(ary, 'g'))
   end
 
+  def add_to_gen(gen, key, value, *tag)
+    gen.add(key, [value, *tag], *tag)
+  end
+
   def test_fetch_and_read_wo_tag
-    ary = []
-    ary << [21, ['a']]
-    ary << [39, ['b']]
-    ary << [60, ['c', 'tag']]
-    ary << [99, ['d', 'tag']]
-    
-    im = Drip::ImmutableDrip.new(ary, [])
+    gen = Drip::ImmutableDrip::Generator.new
+    add_to_gen(gen, 21, 'a')
+    add_to_gen(gen, 99, 'd', 'tag')
+    add_to_gen(gen, 39, 'b')
+    add_to_gen(gen, 60, 'c', 'tag')
+
+    im = gen.generate
+
     assert_equal(nil, im.fetch(20))
     assert_equal(['a'], im.fetch(21))
     assert_equal(nil, im.fetch(23))
@@ -241,5 +246,18 @@ class TestImmutableDrip < Test::Unit::TestCase
     assert_equal([60, 'c', 'tag'], im.newer(39))
     assert_equal([99, 'd', 'tag'], im.newer(60))
     assert_equal(nil, im.newer(99))
+  end
+
+  def test_read_w_tag
+    gen = Drip::ImmutableDrip::Generator.new
+    add_to_gen(gen, 21, 'a')
+    add_to_gen(gen, 39, 'b', 'b', 'tag')
+    add_to_gen(gen, 60, 'c', 'c', 'tag')
+    add_to_gen(gen, 99, 'd', 'tag', 'd')
+    add_to_gen(gen, 159, 'e', 'tag2', 'e')
+    im = gen.generate
+    
+    assert_equal([[99, 'd', 'tag', 'd']], im.head(1, 'tag'))
+    assert_equal([[99, 'd', 'tag', 'd']], im.head(1, 'd'))
   end
 end
