@@ -201,19 +201,45 @@ class TestImmutableDrip < Test::Unit::TestCase
     assert_equal(8, im.upper_boundary(ary, 'g'))
   end
 
-  def test_fetch
+  def test_fetch_and_read_wo_tag
     ary = []
     ary << [21, ['a']]
     ary << [39, ['b']]
-    ary << [60, ['c']]
-    ary << [99, ['d']]
+    ary << [60, ['c', 'tag']]
+    ary << [99, ['d', 'tag']]
     
     im = Drip::ImmutableDrip.new(ary, [])
     assert_equal(nil, im.fetch(20))
     assert_equal(['a'], im.fetch(21))
     assert_equal(nil, im.fetch(23))
     assert_equal(['b'], im.fetch(39))
-    assert_equal(['d'], im.fetch(99))
+    assert_equal(['d', 'tag'], im.fetch(99))
     assert_equal(nil,  im.fetch(990))
+    
+    assert_equal([[21, 'a']], im.read(0))
+    assert_equal([[39, 'b']], im.read(21))
+    assert_equal([[60, 'c', 'tag']], im.read(39))
+    assert_equal([[99, 'd', 'tag']], im.read(60))
+    assert_equal([], im.read(99))
+    
+    assert_equal([[21, 'a'], [39, 'b']], im.read(0, 2))
+    assert_equal([[60, 'c', 'tag'], [99, 'd', 'tag']], im.read(39, 10))
+    
+    assert_equal([[99, 'd', 'tag']], im.head)
+    assert_equal([[60, 'c', 'tag'], [99, 'd', 'tag']], im.head(2))
+    assert_equal([[21, 'a'], [39, 'b'], [60, 'c', 'tag'], [99, 'd', 'tag']],
+                 im.head(10))
+    
+    assert_equal([99, 'd', 'tag'], im.older(nil))
+    assert_equal([60, 'c', 'tag'], im.older(99))
+    assert_equal([39, 'b'], im.older(60))
+    assert_equal([21, 'a'], im.older(39))
+    assert_equal(nil, im.older(21))
+    
+    assert_equal([21, 'a'], im.newer(0))
+    assert_equal([39, 'b'], im.newer(21))
+    assert_equal([60, 'c', 'tag'], im.newer(39))
+    assert_equal([99, 'd', 'tag'], im.newer(60))
+    assert_equal(nil, im.newer(99))
   end
 end

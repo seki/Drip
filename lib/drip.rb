@@ -23,7 +23,7 @@ class Drip
       idx = lower_boundary(@pool, key + 1)
       return [] unless idx
       @pool[idx, n].collect {|kv|
-        kv[0] + kv[1].to_a
+        [kv[0], *kv[1].to_a]
       }
     end
 
@@ -36,19 +36,24 @@ class Drip
     end
 
     def head(n=1, tag=nil)
+      return head_tag(n, tag) if tag
+      n = @pool.size < n ? @pool.size : n
+      @pool[-n, n].collect {|kv|
+        [kv[0], *kv[1].to_a]
+      }
     end
 
     def older(key, tag=nil)
-      return nil if @pool.empty?
       key = @pool[-1][0] + 1 unless key
-      if tag
-      else
-        idx = upper_bound(@pool, key - 1)
-        kv = @pool[idx]
-      end
+      return older_tag(key, tag) if tag
+      idx = upper_boundary(@pool, key - 1)
+      k, v = @pool[idx - 1]
+      k && k < key ? [k, *v.to_a] : nil
     end
 
-    def newer()
+    def newer(key, tag=nil)
+      return read(key, 1)[0] unless tag
+      read_tag(key, tag, 1)[0]
     end
     
     def lower_boundary(ary, key)
