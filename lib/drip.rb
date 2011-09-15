@@ -51,7 +51,7 @@ class Drip
       idx = lower_boundary(@tag, [tag, key + 1])
       return [] unless idx
       @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
-        kv[0][1] + kv[1].to_a
+        [kv[0][1], *kv[1].to_a]
       }
     end
 
@@ -70,6 +70,12 @@ class Drip
       @pool[-n, n].collect {|kv|
         [kv[0], *kv[1].to_a]
       }
+    end
+
+    def older_tag(key, tag)
+      idx = upper_boundary(@tag, [tag, key-1])
+      k, v = @tag[idx - 1]
+      k && k[0] == tag ? [k[1], *v.to_a] : nil
     end
 
     def older(key, tag=nil)

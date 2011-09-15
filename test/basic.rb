@@ -259,5 +259,29 @@ class TestImmutableDrip < Test::Unit::TestCase
     
     assert_equal([[99, 'd', 'tag', 'd']], im.head(1, 'tag'))
     assert_equal([[99, 'd', 'tag', 'd']], im.head(1, 'd'))
+    assert_equal([[60, 'c', 'c', 'tag'], [99, 'd', 'tag', 'd']],
+                 im.head(2, 'tag'))
+    
+    assert_equal([[159, 'e', 'tag2', 'e']], im.read_tag(1, 'tag2'))
+    assert_equal([[99, 'd', 'tag', 'd']], im.read_tag(60, 'tag', 3))
+    assert_equal([[60, 'c', 'c', 'tag'], [99, 'd', 'tag', 'd']],
+                 im.read_tag(39, 'tag', 3))
+    assert_equal([[39, 'b', 'b', 'tag'],
+                  [60, 'c', 'c', 'tag'],
+                  [99, 'd', 'tag', 'd']],
+                 im.read_tag(21, 'tag', 5))
+    assert_equal([[39, 'b', 'b', 'tag'],
+                  [60, 'c', 'c', 'tag']],
+                  im.read_tag(21, 'tag', 2))
+    assert_equal([[39, 'b', 'b', 'tag'],
+                  [60, 'c', 'c', 'tag']],
+                  im.read_tag(38, 'tag', 2))
+    
+    assert_equal([99, 'd', 'tag', 'd'], im.older(nil, 'tag'))
+    assert_equal([60, 'c', 'c', 'tag'], im.older(99, 'tag'))
+    assert_equal(nil, im.older(21), 'tag')
+
+    assert_equal([60, 'c', 'c', 'tag'], im.newer(39, 'tag'))
+    assert_equal(nil, im.newer(99, 'tag'))
   end
 end
