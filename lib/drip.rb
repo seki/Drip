@@ -9,20 +9,28 @@ class Drip
 
   class ImmutableDrip
     class Generator
-      def initialize(pool=[], tag=[])
-        @pool = pool
-        @tag = tag
+      def initialize
+        @pool = []
+        @tag = []
+        @shared = Hash.new {|h, k| h[k] = k; k}
       end
 
       def add(key, value, *tag)
         @pool << [key, value]
+        idx = @pool.size - 1
         tag.uniq.each do |t|
-          @tag << [[t, key], value]
+          @tag << [[@shared[t], key], idx]
         end
       end
       
       def generate
-        ImmutableDrip.new(@pool.sort, @tag.sort)
+        tag = @tag.sort
+        tag.inject(nil) do |last, kv|
+          k = kv[0]
+          k[0] = last if k[0] == last
+          k[0]
+        end
+        ImmutableDrip.new(@pool.sort, tag)
       end
     end
 
@@ -51,7 +59,7 @@ class Drip
       idx = lower_boundary(@tag, [tag, key + 1])
       return [] unless idx
       @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
-        [kv[0][1], *kv[1].to_a]
+        [kv[0][1], *@pool[kv[1]][1].to_a]
       }
     end
 
@@ -60,7 +68,7 @@ class Drip
       upper = upper_boundary(@tag, [tag, INF])
       lower = [lower, upper - n].max
       @tag[lower ... upper].collect {|kv|
-        [kv[0][1], *kv[1].to_a]
+        [kv[0][1], *@pool[kv[1]][1].to_a]
       }
     end
 
@@ -75,7 +83,7 @@ class Drip
     def older_tag(key, tag)
       idx = upper_boundary(@tag, [tag, key-1])
       k, v = @tag[idx - 1]
-      k && k[0] == tag ? [k[1], *v.to_a] : nil
+      k && k[0] == tag ? [k[1], *@pool[v][1].to_a] : nil
     end
 
     def older(key, tag=nil)
