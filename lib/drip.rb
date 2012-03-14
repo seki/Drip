@@ -14,6 +14,7 @@ class Drip
         @tag = tag
         @shared = Hash.new {|h, k| h[k] = k; k}
       end
+      attr_reader :pool, :tag
 
       def add(key, value, *tag)
         @pool << [key, value]
@@ -31,35 +32,6 @@ class Drip
           k[0]
         end
         ImmutableDrip.new(@pool.sort, tag)
-      end
-
-      def prepare_store(dir)
-        Dir.mkdir(dir) rescue nil
-        dump = Dir.glob(File.join(dir, '*.dump')).max_by do |fn| 
-          File.basename(fn).to_i(36)
-        end
-        if dump
-          @pool, @tag, _ = File.open(dump, 'rb') {|fp| Marshal.load(fp)}
-          File.unlink(dump)
-        end
-        dump = false
-        loaded = dump ? File.basename(dump).to_i(36) : 0
-        Dir.glob(File.join(dir, '*.log')) do |fn|
-          next if loaded > File.basename(fn).to_i(36)
-          begin
-            SimpleStore.reader(fn).each do |k, v, attic|
-              obj, *tags = v
-              attic.forget
-              add(k, attic, *tags)
-            end
-          rescue
-          end
-        end
-        name = Drip.time_to_key(Time.now).to_s(36)
-        File.open(File.join(dir, name + '.dump'), 'wb') {|fp|
-          Marshal.dump([@pool, @tag], fp)
-        }
-        SimpleStore.new(File.join(dir, name + '.log'))
       end
     end
 
@@ -380,9 +352,34 @@ class Drip
       @store = SimpleStore.new(nil, option)
       return ImmutableDrip.new
     end
-    
+
     gen = ImmutableDrip::Generator.new
-    @store = gen.prepare_store(dir)
+    Dir.mkdir(dir) rescue nil
+    dump = Dir.glob(File.join(dir, '*.dump')).max_by do |fn| 
+      File.basename(fn).to_i(36)
+    end
+    if dump
+      pool, tag, _ = File.open(dump, 'rb') {|fp| Marshal.load(fp)}
+      File.unlink(dump)
+    end
+    dump = false
+    loaded = dump ? File.basename(dump).to_i(36) : 0
+    Dir.glob(File.join(dir, '*.log')) do |fn|
+      next if loaded > File.basename(fn).to_i(36)
+      begin
+        SimpleStore.reader(fn).each do |k, v, attic|
+          obj, *tags = v
+          attic.forget
+          gen.add(k, attic, *tags)
+        end
+      rescue
+      end
+    end
+    name = Drip.time_to_key(Time.now).to_s(36)
+    File.open(File.join(dir, name + '.dump'), 'wb') {|fp|
+      Marshal.dump([gen.pool, gen.tag], fp)
+    }
+    @store = SimpleStore.new(File.join(dir, name + '.log'))
     return gen.generate
   end
 
