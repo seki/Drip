@@ -64,14 +64,14 @@ class Drip
       }
     end
 
-    def old?(key, tag)
+    def latest?(key, tag)
       return false if @pool.empty?
       if tag
         lower = lower_boundary(@tag, [tag, key])
         upper = upper_boundary(@tag, [tag, INF])
-        return lower < upper - 1
+        return lower == upper - 1
       else
-        return @pool[-1][0] > key
+        return @pool[-1][0] == key
       end
     end
 
@@ -168,6 +168,16 @@ class Drip
     end
   end
 
+  def write_if_latest(cond, *value)
+    make_key(Time.now) do |key|
+      cond.each {|it|
+        return nil unless latest?(it[1], it[0])
+      }
+      value = do_write(key, value)
+      @pool[key] = @store.write(key, value)
+    end
+  end
+
   def fetch(key)
     return @past.fetch(key) if @fence >= key 
     @pool[key].to_a
@@ -205,20 +215,20 @@ class Drip
     @past.head(n - ary.size, tag) + ary
   end
 
-  def old?(key, tag=nil)
+  def latest?(key, tag=nil)
     now = time_to_key(Time.now)
     if tag
       it ,= @tag.upper_bound([tag, now])
       if it && it[0] == tag
-        return false if it[1] == key
-        return true if it[1] > key
+        return true if it[1] == key
+        return false if it[1] > key
       end
     else
       k ,= @pool.upper_bound(now)
-      return false if k == key
-      return true if k.to_i > key
+      return true if k == key
+      return false if k.to_i > key
     end
-    @past.old?(key, tag)
+    @past.latest?(key, tag)
   end
 
   def older(key, tag=nil)

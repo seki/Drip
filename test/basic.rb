@@ -125,20 +125,34 @@ class TestDrip < Test::Unit::TestCase
     assert_equal(@drip[oid], ['dup', 'hello'])
   end
 
-  def test_old?
+  def test_latest?
     key = @drip.write(:start)
     10.times do |n|
       @drip.write(n)
     end
-    assert_equal(@drip.old?(key), true)
+    assert_equal(@drip.latest?(key), false)
     key = @drip.write(:stop)
-    assert_equal(@drip.old?(key), false)
+    assert_equal(@drip.latest?(key), true)
 
     key = @drip.write(:tag_start, 'tag')
     @drip.write(:tag, 'ignore tag')
-    assert_equal(@drip.old?(key, 'tag'), false)
+    assert_equal(@drip.latest?(key, 'tag'), true)
     @drip.write(:tag, 'tag')
-    assert_equal(@drip.old?(key, 'tag'), true)
+    assert_equal(@drip.latest?(key, 'tag'), false)
+  end
+
+  def test_write_if_latest
+    t1 = @drip.write('t1', 't1')
+    t2 = @drip.write('t2', 't2')
+    t3 = @drip.write('t3', 't3')
+    assert_equal(@drip.latest?(t1, 't1'), true)
+    assert(@drip.write_if_latest([['t1', t1],
+                                  ['t2', t2],
+                                  ['t3', t3]], 'hello', 't1'))
+    assert_equal(@drip.latest?(t1, 't1'), false)
+    assert_equal(@drip.write_if_latest([['t1', t1],
+                                        ['t2', t2],
+                                        ['t3', t3]], 'hello', 't1'), nil)
   end
 end
 
@@ -156,18 +170,19 @@ class TestDripUsingStorage < TestDrip
     remove_drip
   end
 
-  def test_twice_old?
-    assert_equal(@drip.old?(1), false)
+  def test_twice_latest?
+    assert_equal(@drip.latest?(1), false)
     tag1 = @drip.write('tag1', 'tag1')
+    assert_equal(@drip.latest?(tag1), true)
     @drip.write('nop', 'tag1')
     @drip.write('nop', 'tag1')
     tag2 = @drip.write('tag2', 'tag1')
-    assert_equal(@drip.old?(1), true)
+    assert_equal(@drip.latest?(1), false)
     drip = Drip.new('test_db')
-    assert_equal(drip.old?(1), true)
-    assert_equal(drip.old?(tag1, 'tag1'), true)
-    assert_equal(drip.old?(tag2, 'tag1'), false)
-    assert_equal(drip.old?(tag2, 'tag0'), false)
+    assert_equal(drip.latest?(1), false)
+    assert_equal(drip.latest?(tag1, 'tag1'), false)
+    assert_equal(drip.latest?(tag2, 'tag1'), true)
+    assert_equal(drip.latest?(tag2, 'tag0'), false)
   end
   
   def test_twice
