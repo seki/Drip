@@ -124,6 +124,22 @@ class TestDrip < Test::Unit::TestCase
     oid = @drip.write('dup', 'hello', 'hello', 'hello')
     assert_equal(@drip[oid], ['dup', 'hello'])
   end
+
+  def test_old?
+    key = @drip.write(:start)
+    10.times do |n|
+      @drip.write(n)
+    end
+    assert_equal(@drip.old?(key), true)
+    key = @drip.write(:stop)
+    assert_equal(@drip.old?(key), false)
+
+    key = @drip.write(:tag_start, 'tag')
+    @drip.write(:tag, 'ignore tag')
+    assert_equal(@drip.old?(key, 'tag'), false)
+    @drip.write(:tag, 'tag')
+    assert_equal(@drip.old?(key, 'tag'), true)
+  end
 end
 
 class TestDripUsingStorage < TestDrip
@@ -138,6 +154,20 @@ class TestDripUsingStorage < TestDrip
 
   def teardown
     remove_drip
+  end
+
+  def test_twice_old?
+    assert_equal(@drip.old?(1), false)
+    tag1 = @drip.write('tag1', 'tag1')
+    @drip.write('nop', 'tag1')
+    @drip.write('nop', 'tag1')
+    tag2 = @drip.write('tag2', 'tag1')
+    assert_equal(@drip.old?(1), true)
+    drip = Drip.new('test_db')
+    assert_equal(drip.old?(1), true)
+    assert_equal(drip.old?(tag1, 'tag1'), true)
+    assert_equal(drip.old?(tag2, 'tag1'), false)
+    assert_equal(drip.old?(tag2, 'tag0'), false)
   end
   
   def test_twice

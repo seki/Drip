@@ -64,6 +64,17 @@ class Drip
       }
     end
 
+    def old?(key, tag)
+      return false if @pool.empty?
+      if tag
+        lower = lower_boundary(@tag, [tag, key])
+        upper = upper_boundary(@tag, [tag, INF])
+        return lower < upper - 1
+      else
+        return @pool[-1][0] > key
+      end
+    end
+
     def head_tag(n, tag)
       lower = lower_boundary(@tag, [tag, 0])
       upper = upper_boundary(@tag, [tag, INF])
@@ -194,6 +205,22 @@ class Drip
     @past.head(n - ary.size, tag) + ary
   end
 
+  def old?(key, tag=nil)
+    now = time_to_key(Time.now)
+    if tag
+      it ,= @tag.upper_bound([tag, now])
+      if it && it[0] == tag
+        return false if it[1] == key
+        return true if it[1] > key
+      end
+    else
+      k ,= @pool.upper_bound(now)
+      return false if k == key
+      return true if k.to_i > key
+    end
+    @past.old?(key, tag)
+  end
+
   def older(key, tag=nil)
     curr_older(key, tag) || @past.older(key, tag)
   end
@@ -240,7 +267,7 @@ class Drip
   def curr_head(n=1, tag=nil)
     ary = []
     key = nil
-    while it = older(key, tag)
+    while it = curr_older(key, tag)
       break if n <= 0
       ary.unshift(it)
       key = it[0]
