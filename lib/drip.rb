@@ -13,6 +13,7 @@ class Drip
         @pool = pool
         @tag = tag
         @shared = Hash.new {|h, k| h[k] = k; k}
+        @tag.each {|pair| @shared[pair[0]]}
       end
       attr_reader :pool, :tag
 
@@ -390,7 +391,6 @@ class Drip
       return ImmutableDrip.new
     end
 
-    gen = ImmutableDrip::Generator.new
     Dir.mkdir(dir) rescue nil
     dump = Dir.glob(File.join(dir, '*.dump')).max_by do |fn| 
       File.basename(fn).to_i(36)
@@ -398,8 +398,11 @@ class Drip
     if dump
       pool, tag, _ = File.open(dump, 'rb') {|fp| Marshal.load(fp)}
       File.unlink(dump)
+    else
+      pool = []
+      tag = []
     end
-    dump = false
+    gen = ImmutableDrip::Generator.new(pool, tag)
     loaded = dump ? File.basename(dump).to_i(36) : 0
     Dir.glob(File.join(dir, '*.log')) do |fn|
       next if loaded > File.basename(fn).to_i(36)
