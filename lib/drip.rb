@@ -5,6 +5,8 @@ require 'enumerator'
 
 class Drip
   include DRbUndumped
+  INF = 1.0/0.0
+
   def inspect; to_s; end
 
   class ImmutableDrip
@@ -35,8 +37,6 @@ class Drip
         ImmutableDrip.new(@pool.sort, tag)
       end
     end
-
-    INF = 1.0/0
 
     def initialize(pool=[], tag=[])
       @pool = pool
@@ -479,7 +479,6 @@ class Drip
     @event.write([:last, last])
   end
   
-  INF = 1.0/0.0
   def wait(key, renewer)
     @event.read([:last, key+1 .. INF], renewer)[1]
   end
