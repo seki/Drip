@@ -220,30 +220,30 @@ end
 
 class TestImmutableDrip < Test::Unit::TestCase
   def test_bsearch
-    im = Drip::ImmutableDrip.new
+    ab = Drip::ArrayBsearch
 
-    assert_equal(0, im.lower_boundary([], 'c'))
-    assert_equal(0, im.upper_boundary([], 'c'))
+    assert_equal(0, ab.lower_boundary([], 'c'))
+    assert_equal(0, ab.upper_boundary([], 'c'))
 
     ary = %w(a b c c c d e f).collect {|x| [x]}
 
-    assert_equal(0, im.lower_boundary(ary, ''))
-    assert_equal(0, im.lower_boundary(ary, 'a'))
-    assert_equal(1, im.lower_boundary(ary, 'b'))
-    assert_equal(2, im.lower_boundary(ary, 'c'))
-    assert_equal(5, im.lower_boundary(ary, 'd'))
-    assert_equal(6, im.lower_boundary(ary, 'e'))
-    assert_equal(7, im.lower_boundary(ary, 'f'))
-    assert_equal(8, im.lower_boundary(ary, 'g'))
+    assert_equal(0, ab.lower_boundary(ary, ''))
+    assert_equal(0, ab.lower_boundary(ary, 'a'))
+    assert_equal(1, ab.lower_boundary(ary, 'b'))
+    assert_equal(2, ab.lower_boundary(ary, 'c'))
+    assert_equal(5, ab.lower_boundary(ary, 'd'))
+    assert_equal(6, ab.lower_boundary(ary, 'e'))
+    assert_equal(7, ab.lower_boundary(ary, 'f'))
+    assert_equal(8, ab.lower_boundary(ary, 'g'))
 
-    assert_equal(0, im.upper_boundary(ary, ''))
-    assert_equal(1, im.upper_boundary(ary, 'a'))
-    assert_equal(2, im.upper_boundary(ary, 'b'))
-    assert_equal(5, im.upper_boundary(ary, 'c'))
-    assert_equal(6, im.upper_boundary(ary, 'd'))
-    assert_equal(7, im.upper_boundary(ary, 'e'))
-    assert_equal(8, im.upper_boundary(ary, 'f'))
-    assert_equal(8, im.upper_boundary(ary, 'g'))
+    assert_equal(0, ab.upper_boundary(ary, ''))
+    assert_equal(1, ab.upper_boundary(ary, 'a'))
+    assert_equal(2, ab.upper_boundary(ary, 'b'))
+    assert_equal(5, ab.upper_boundary(ary, 'c'))
+    assert_equal(6, ab.upper_boundary(ary, 'd'))
+    assert_equal(7, ab.upper_boundary(ary, 'e'))
+    assert_equal(8, ab.upper_boundary(ary, 'f'))
+    assert_equal(8, ab.upper_boundary(ary, 'g'))
   end
 
   def add_to_gen(gen, key, value, *tag)
