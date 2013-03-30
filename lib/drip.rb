@@ -403,9 +403,126 @@ class Drip
 end
 
 class Drip
+  class SortedArray
+    include Drip::ArrayBsearch
+
+    def initialize(ary)
+      @ary = ary
+    end
+
+    def fetch(key)
+      idx = lower_boundary(@ary, key)
+      k, v = @ary[idx]
+      k == key ? v.to_a : nil
+    end
+
+    def read(key, n=1)
+      idx = lower_boundary(@ary, key + 1)
+      return [] unless idx
+      @ary[idx, n].collect {|kv|
+        [kv[0], *kv[1].to_a]
+      }
+    end
+
+    def empty?
+      @ary.empty?
+    end
+
+    def latest?(key)
+      return false if @ary.empty?
+      return @ary[-1][0] == key
+    end
+
+    def head(n)
+      n = @ary.size < n ? @ary.size : n
+      @ary[-n, n].collect {|kv|
+        [kv[0], *kv[1].to_a]
+      }
+    end
+
+    def older(key)
+      return nil if @ary.empty?
+      key = @ary[-1][0] + 1 unless key
+      idx = upper_boundary(@ary, key - 1)
+      k, v = @ary[idx - 1]
+      k && k < key ? [k, *v.to_a] : nil
+    end
+
+    def last
+      @ary[-1]
+    end
+  end
+end
+
+class Drip
   class ImmutableDrip
     include Drip::ArrayBsearch
 
+    def initialize(pool=[], tag=[])
+      @pool = Drip::SortedArray.new(pool)
+      @tag = tag
+    end
+
+    def fetch(key)
+      @pool.fetch(key)
+    end
+
+    def read(key, n=1)
+      @pool.read(key, n)
+    end
+
+    def read_tag(key, tag, n=1)
+      idx = lower_boundary(@tag, [tag, key + 1])
+      return [] unless idx
+      @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
+        [kv[0][1], *fetch(kv[0][1])]
+      }
+    end
+
+    def latest?(key, tag)
+      return false if @pool.empty?
+      return @pool.latest?(key) unless tag
+
+      lower = lower_boundary(@tag, [tag, key])
+      upper = upper_boundary(@tag, [tag, INF])
+      return lower == upper - 1
+    end
+
+    def head_tag(n, tag)
+      lower = lower_boundary(@tag, [tag, 0])
+      upper = upper_boundary(@tag, [tag, INF])
+      lower = [lower, upper - n].max
+      @tag[lower ... upper].collect {|kv|
+        [kv[0][1], *fetch(kv[0][1])]
+      }
+    end
+
+    def head(n=1, tag=nil)
+      tag ? head_tag(n, tag) : @pool.head(n)
+    end
+
+    def older_tag(key, tag)
+      idx = upper_boundary(@tag, [tag, key-1])
+      k, v = @tag[idx - 1]
+      k && k[0] == tag ? [k[1], *fetch(k[1])] : nil
+    end
+
+    def older(key, tag=nil)
+      return nil if @pool.empty?
+      key = @pool.last[0] + 1 unless key
+      return older_tag(key, tag) if tag
+      @pool.older(key)
+    end
+
+    def newer(key, tag=nil)
+      return read(key, 1)[0] unless tag
+      read_tag(key, tag, 1)[0]
+    end
+  end
+end
+
+class Drip
+  class ImmutableDrip
     class Generator
       def initialize(pool=[], tag=[])
         @pool = pool
@@ -433,85 +550,8 @@ class Drip
         ImmutableDrip.new(@pool.sort, tag)
       end
     end
-
-    def initialize(pool=[], tag=[])
-      @pool = pool
-      @tag = tag
-    end
-
-    def fetch(key)
-      idx = lower_boundary(@pool, key)
-      k, v = @pool[idx]
-      k == key ? v.to_a : nil
-    end
-
-    def read(key, n=1)
-      idx = lower_boundary(@pool, key + 1)
-      return [] unless idx
-      @pool[idx, n].collect {|kv|
-        [kv[0], *kv[1].to_a]
-      }
-    end
-
-    def read_tag(key, tag, n=1)
-      idx = lower_boundary(@tag, [tag, key + 1])
-      return [] unless idx
-      @tag[idx, n].find_all {|kv| kv[0][0] == tag}.collect {|kv| 
-        [kv[0][1], *fetch(kv[0][1])]
-      }
-    end
-
-    def latest?(key, tag)
-      return false if @pool.empty?
-      if tag
-        lower = lower_boundary(@tag, [tag, key])
-        upper = upper_boundary(@tag, [tag, INF])
-        return lower == upper - 1
-      else
-        return @pool[-1][0] == key
-      end
-    end
-
-    def head_tag(n, tag)
-      lower = lower_boundary(@tag, [tag, 0])
-      upper = upper_boundary(@tag, [tag, INF])
-      lower = [lower, upper - n].max
-      @tag[lower ... upper].collect {|kv|
-        [kv[0][1], *fetch(kv[0][1])]
-      }
-    end
-
-    def head(n=1, tag=nil)
-      return head_tag(n, tag) if tag
-      n = @pool.size < n ? @pool.size : n
-      @pool[-n, n].collect {|kv|
-        [kv[0], *kv[1].to_a]
-      }
-    end
-
-    def older_tag(key, tag)
-      idx = upper_boundary(@tag, [tag, key-1])
-      k, v = @tag[idx - 1]
-      k && k[0] == tag ? [k[1], *fetch(k[1])] : nil
-    end
-
-    def older(key, tag=nil)
-      return nil if @pool.empty?
-      key = @pool[-1][0] + 1 unless key
-      return older_tag(key, tag) if tag
-      idx = upper_boundary(@pool, key - 1)
-      k, v = @pool[idx - 1]
-      k && k < key ? [k, *v.to_a] : nil
-    end
-
-    def newer(key, tag=nil)
-      return read(key, 1)[0] unless tag
-      read_tag(key, tag, 1)[0]
-    end
-    
   end
 end
-
 
 if __FILE__ == $0
   require 'my_drip'
