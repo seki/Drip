@@ -11,7 +11,7 @@ class Drip
   def initialize(dir, option={})
     @past = prepare_store(dir, option)
     @fence = (@past.head[0][0] rescue 0) || 0
-    @pool = RBTree.new
+    @pool = Drip::SortedArray.new([])
     @tag = RBTree.new
     @event = Rinda::TupleSpace.new(5)
     @event.write([:last, @fence])
@@ -24,14 +24,14 @@ class Drip
   def write_after(at, *value)
     make_key(at) do |key|
       value = do_write(key, value)
-      @pool[key] = @store.write(key, value)
+      @pool.push([key, @store.write(key, value)])
     end
   end
   
   def write_at(at, *value)
     make_key_at(at) do |key|
       value = do_write(key, value)
-      @pool[key] = @store.write(key, value)
+      @pool.push([key, @store.write(key, value)])
     end
   end
 
@@ -41,13 +41,13 @@ class Drip
         return nil unless latest?(it[1], it[0])
       }
       value = do_write(key, value)
-      @pool[key] = @store.write(key, value)
+      @pool.push([key, @store.write(key, value)])
     end
   end
 
   def fetch(key)
     return @past.fetch(key) if @fence >= key 
-    @pool[key].to_a
+    @pool.fetch(key)
   end
   alias [] fetch
 
@@ -77,6 +77,7 @@ class Drip
   end
 
   def head(n=1, tag=nil)
+    return @pool.head(n) unless tag
     ary = curr_head(n, tag)
     return ary if ary.size == n
     @past.head(n - ary.size, tag) + ary
@@ -91,9 +92,7 @@ class Drip
         return false if it[1] > key
       end
     else
-      k ,= @pool.upper_bound(now)
-      return true if k == key
-      return false if k.to_i > key
+      return true if @pool.latest?(key)
     end
     @past.latest?(key, tag)
   end
@@ -116,9 +115,9 @@ class Drip
       rescue Rinda::RequestExpiredError
         return ary
       end
-      key, value = @pool.lower_bound(key + 1)
+      key, value, *tags = @pool.read(key)[0]
       return ary unless key
-      ary << [key] + value.to_a
+      ary << [key] + [value, *tags]
     end
     ary
   end
@@ -155,10 +154,8 @@ class Drip
 
   def curr_older(key, tag=nil)
     key = time_to_key(Time.now) unless key
-    unless tag
-      k, v = @pool.upper_bound(key - 1)
-      return k ? [k] + v.to_a : nil
-    end
+
+    return @pool.older(key) unless tag
 
     it ,= @tag.upper_bound([tag, key - 1])
     return nil unless it && it[0] == tag
@@ -306,7 +303,8 @@ class Drip
       tag = shared_text(k)
       @tag[[tag, key]] = key
     end
-    @pool[key] = [obj] + tags
+    # @pool[key] = [obj] + tags
+    [obj] + tags
   end
 
   def restore(store)
@@ -408,6 +406,13 @@ class Drip
 
     def initialize(ary)
       @ary = ary
+      @last_key = ary.empty? ? 0 : ary[-1][0]
+    end
+
+    def push(obj)
+      raise 'InvalidTimeError' if obj[0] <= @last_key
+      @last_key = obj[0]
+      @ary << obj
     end
 
     def fetch(key)
@@ -429,8 +434,7 @@ class Drip
     end
 
     def latest?(key)
-      return false if @ary.empty?
-      return @ary[-1][0] == key
+      @last_key == key
     end
 
     def head(n)
@@ -450,6 +454,10 @@ class Drip
 
     def last
       @ary[-1]
+    end
+    
+    def last_key
+      @ary.empty? ? 0 : last[0]
     end
   end
 end
@@ -509,7 +517,7 @@ class Drip
 
     def older(key, tag=nil)
       return nil if @pool.empty?
-      key = @pool.last[0] + 1 unless key
+      key = @pool.last_key + 1 unless key
       return older_tag(key, tag) if tag
       @pool.older(key)
     end
