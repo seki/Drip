@@ -147,7 +147,7 @@ class DripDemo
   end
 
   def home_timeline(since_id, max_id)
-    url = "http://api.twitter.com/1/statuses/home_timeline.json?count=200&include_entities=true"
+    url = "http://api.twitter.com/1.1/statuses/home_timeline.json?count=200&include_entities=true"
     url += "&since_id=#{since_id}" if since_id
     url += "&max_id=#{max_id}" if max_id
     r = oauth.request(:GET, url)
@@ -155,7 +155,7 @@ class DripDemo
   end
 
   def user_timeline(since_id, max_id)
-    url = "http://api.twitter.com/1/statuses/user_timeline.json?count=200&include_entities=true&trim_user=t"
+    url = "http://api.twitter.com/1.1/statuses/user_timeline.json?count=200&include_entities=true&trim_user=t"
     url += "&since_id=#{since_id}" if since_id
     url += "&max_id=#{max_id}" if max_id
     r = oauth.request(:GET, url)
@@ -225,13 +225,13 @@ class DripDemo
   def update(str, in_reply_to=nil)
     hash = { :status => str }
     hash[:in_reply_to_status_id] = in_reply_to if in_reply_to
-    r = oauth.post('http://api.twitter.com/1/statuses/update.xml',
+    r = oauth.post('http://api.twitter.com/1.1/statuses/update.xml',
                    hash)
     pp r.body if $DEBUG
   end
 
   def test
-    r = oauth.post('http://api.twitter.com/1/statuses/update.xml',
+    r = oauth.post('http://api.twitter.com/1.1/statuses/update.xml',
                    {:status => 'test'})
     pp r.body if $DEBUG
   end
