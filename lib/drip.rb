@@ -77,7 +77,10 @@ class Drip
   end
 
   def head(n=1, tag=nil)
-    return @pool.head(n) unless tag
+    unless tag
+      ary = @pool.head(n)
+      return @past.head(n - ary.size) + ary
+    end
     ary = curr_head(n, tag)
     return ary if ary.size == n
     @past.head(n - ary.size, tag) + ary
@@ -399,6 +402,29 @@ class Drip
     end
   end
 end
+
+class Drip
+  class FakeRBTree
+    include Drip::ArrayBsearch
+
+    def initialize
+      @tree = Hash.new {|h, k| h[k] = Array.new}
+    end
+    
+    def upper_bound(pair)
+      tag, now = pair
+      return nil unless @tree.include?(tag)
+      ary = @tree[tag]
+      idx = upper_boundary(ary, now)
+      [tag, ary[tag][idx]]
+    end
+    
+    def lower_bound(pair)
+    end
+  end
+end
+
+
 
 class Drip
   class SortedArray

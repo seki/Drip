@@ -189,8 +189,16 @@ class TestDripUsingStorage < TestDrip
     11.times do |n|
       @drip.write("n=#{n}" => 'x' * n, n => n, "n" => n, :symbol => n)
     end
-
+    
     drip = Drip.new('test_db')
+    ary = drip.head(3)
+    assert_equal(ary.size, 3)
+    assert_equal(ary[0][1]['n'], 8)
+    assert_equal(ary[1][1]['n'], 9)
+    assert_equal(ary[2][1]['n'], 10)
+    ary = drip.head(1)
+    assert_equal(ary.size, 1)
+    assert_equal(ary[0][1]['n'], 10)
     ary = drip.read(0, 3)
     assert_equal(ary.size, 3)
     assert_equal(ary[0][1]['n'], 0)
