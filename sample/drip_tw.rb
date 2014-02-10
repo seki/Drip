@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 require 'simple-oauth'
 require 'drb'
 require 'pp'
@@ -36,6 +37,40 @@ class DripFiber
   end
 end
 
+class DripThread
+  def initialize(app)
+    @app = app
+    @queue = Queue.new
+    Thread.new do
+      story
+    end
+  end
+
+  def story
+    event = @queue.pop
+    pending = []
+    while event['id_str'].nil?
+      pending << event
+      event = @queue.pop
+    end
+    
+    @app.fill_timeline(event['id_str'])
+
+    while event = pending.shift
+      @app.write(event)
+    end
+    
+    while true
+      event = @queue.pop
+      @app.write(event)
+    end
+  end
+  
+  def push(event)
+    @queue.push(event)
+  end
+end
+
 class JSONStream
   def initialize(drip)
     @buf = ''
@@ -49,8 +84,10 @@ class JSONStream
         @buf.sub!(line,"")
         line.strip!
         event = JSON.parse(line)
-      rescue
-        break
+      rescue JSON::ParserError
+        pp $line if $DEBUG
+        pp $! if $DEBUG
+        next
       end
       pp event if $DEBUG
       @drip.push(event)
@@ -138,7 +175,7 @@ class DripDemo
   end
 
   def drip_stream
-    json = JSONStream.new(DripFiber.new(self))
+    json = JSONStream.new(DripThread.new(self))
     oauth.request(:GET, 'https://userstream.twitter.com/2/user.json') do |r|
       r.read_body do |chunk|
         json.push(chunk)
@@ -147,11 +184,18 @@ class DripDemo
   end
 
   def home_timeline(since_id, max_id)
-    url = "http://api.twitter.com/1.1/statuses/home_timeline.json?count=200&include_entities=true"
+    url = "https://api.twitter.com/1.1/statuses/home_timeline.json?count=200&include_entities=true"
     url += "&since_id=#{since_id}" if since_id
     url += "&max_id=#{max_id}" if max_id
     r = oauth.request(:GET, url)
-    JSON.parse(r.body)
+    body = r.body
+    begin
+      JSON.parse(body)
+    rescue
+      pp body
+      pp url
+      exit
+    end
   end
 
   def user_timeline(since_id, max_id)
