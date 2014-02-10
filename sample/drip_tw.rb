@@ -175,7 +175,7 @@ class DripDemo
   end
 
   def drip_stream
-    json = JSONStream.new(DripThread.new(self))
+    json = JSONStream.new(DripFiber.new(self))
     oauth.request(:GET, 'https://userstream.twitter.com/2/user.json') do |r|
       r.read_body do |chunk|
         json.push(chunk)
@@ -189,13 +189,7 @@ class DripDemo
     url += "&max_id=#{max_id}" if max_id
     r = oauth.request(:GET, url)
     body = r.body
-    begin
-      JSON.parse(body)
-    rescue
-      pp body
-      pp url
-      exit
-    end
+    JSON.parse(body)
   end
 
   def user_timeline(since_id, max_id)
