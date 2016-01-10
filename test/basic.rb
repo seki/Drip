@@ -148,7 +148,8 @@ class TestDrip < Test::Unit::TestCase
     assert_equal(@drip.latest?(t1, 't1'), true)
     assert(@drip.write_if_latest([['t1', t1],
                                   ['t2', t2],
-                                  ['t3', t3]], 'hello', 't1'))
+                                  ['t3', t3],
+                                  ['t4', nil]], 'hello', 't1'))
     assert_equal(@drip.latest?(t1, 't1'), false)
     assert_equal(@drip.write_if_latest([['t1', t1],
                                         ['t2', t2],

@@ -38,7 +38,11 @@ class Drip
   def write_if_latest(cond, *value)
     make_key(Time.now) do |key|
       cond.each {|it|
-        return nil unless latest?(it[1], it[0])
+        if it[1]
+          return nil unless latest?(it[1], it[0])
+        else
+          return nil unless head(1, it[0]).empty?
+        end
       }
       value = do_write(key, value)
       @pool.push([key, @store.write(key, value)])
