@@ -38,11 +38,7 @@ class Drip
   def write_if_latest(cond, *value)
     make_key(Time.now) do |key|
       cond.each {|it|
-        if it[1]
-          return nil unless latest?(it[1], it[0])
-        else
-          return nil unless head(1, it[0]).empty?
-        end
+        return nil unless latest?(it[1], it[0])
       }
       value = do_write(key, value)
       @pool.push([key, @store.write(key, value)])
@@ -518,12 +514,17 @@ class Drip
     end
 
     def latest?(key, tag)
-      return false if @pool.empty?
+      return (key == 0) if @pool.empty?
       return @pool.latest?(key) unless tag
 
       lower = lower_boundary(@tag, [tag, key])
       upper = upper_boundary(@tag, [tag, INF])
-      return lower == upper - 1
+      
+      if key == 0
+        return lower == upper
+      else
+        return lower == upper - 1
+      end
     end
 
     def head_tag(n, tag)

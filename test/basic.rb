@@ -127,6 +127,9 @@ class TestDrip < Test::Unit::TestCase
 
   def test_latest?
     key = @drip.write(:start)
+
+    assert_equal(@drip.latest?(0), true)
+
     10.times do |n|
       @drip.write(n)
     end
@@ -149,7 +152,7 @@ class TestDrip < Test::Unit::TestCase
     assert(@drip.write_if_latest([['t1', t1],
                                   ['t2', t2],
                                   ['t3', t3],
-                                  ['t4', nil]], 'hello', 't1'))
+                                  ['t4', 0]], 'hello', 't1'))
     assert_equal(@drip.latest?(t1, 't1'), false)
     assert_equal(@drip.write_if_latest([['t1', t1],
                                         ['t2', t2],
