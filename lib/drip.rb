@@ -183,7 +183,7 @@ class Drip
   end
 
   def key_to_time(key)
-    self.class.key_to_time(time)
+    self.class.key_to_time(key)
   end
 
   def tag_next(tag)
