@@ -185,15 +185,30 @@ class TestDripUsingStorage < TestDrip
     assert_equal(@drip.tag_next('t3'), 't4')
     assert_equal(@drip.tag_next('t5'), nil)
 
+    assert_equal(@drip.tag_prev('u'), 't5')
+    assert_equal(@drip.tag_prev('t5'), 't4')
+    assert_equal(@drip.tag_prev('t2'), 't1')
+    assert_equal(@drip.tag_prev('t1'), nil)
+
     drip = Drip.new('test_db')
     assert_equal(drip.tag_next(''), 't1')
     assert_equal(drip.tag_next('t1'), 't2')
     assert_equal(drip.tag_next('t3'), 't4')
     assert_equal(drip.tag_next('t5'), nil)
     
+    assert_equal(@drip.tag_prev('u'), 't5')
+    assert_equal(@drip.tag_prev('t5'), 't4')
+    assert_equal(@drip.tag_prev('t2'), 't1')
+    assert_equal(@drip.tag_prev('t1'), nil)
+
     drip.write(6, 'a1')
     assert_equal(drip.tag_next(''), 'a1')
     assert_equal(drip.tag_next('a1'), 't1')
+    assert_equal(drip.tag_next('t1'), 't2')
+
+    assert_equal(drip.tag_prev('t2'), 't1')
+    assert_equal(drip.tag_prev('t1'), 'a1')
+    assert_equal(drip.tag_prev('a1'), nil)
   end
 
   def test_twice_latest?

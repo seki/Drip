@@ -195,6 +195,15 @@ class Drip
     curr_tag > past_tag ? past_tag : curr_tag
   end
   
+  def tag_prev(tag)
+    past_tag = @past.tag_prev(tag)
+    it ,= @tag.upper_bound([tag, 0])
+    return past_tag unless it
+    curr_tag = it[0]
+    return curr_tag unless past_tag
+    curr_tag > past_tag ? curr_tag : past_tag
+  end
+  
   private
   class SimpleStore
     Attic = Struct.new(:fname, :fpos, :value)
@@ -544,6 +553,13 @@ class Drip
       lower = lower_boundary(@tag, [tag, INF])
       return nil unless @tag[lower]
       @tag[lower][0][0]
+    end
+
+    def tag_prev(tag)
+      upper = upper_boundary(@tag, [tag, 0]) - 1
+      return nil if upper < 0
+      return nil unless @tag[upper]
+      @tag[upper][0][0]
     end
 
     def head_tag(n, tag)
