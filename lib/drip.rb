@@ -178,8 +178,12 @@ class Drip
     self.class.time_to_key(time)
   end
 
-  def key_to_time(key)
+  def self.key_to_time(key)
     Time.at(*key.divmod(1000000))
+  end
+
+  def key_to_time(key)
+    self.class.key_to_time(time)
   end
 
   def tag_next(tag)
