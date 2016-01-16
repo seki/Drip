@@ -158,6 +158,7 @@ class TestDrip < Test::Unit::TestCase
                                         ['t2', t2],
                                         ['t3', t3]], 'hello', 't1'), nil)
   end
+
 end
 
 class TestDripUsingStorage < TestDrip
@@ -172,6 +173,27 @@ class TestDripUsingStorage < TestDrip
 
   def teardown
     remove_drip
+  end
+
+  def test_tag_browse
+    @drip.write(1, 't1')
+    @drip.write(2, 't2', 't3')
+    @drip.write(3, 't4', 't3')
+    @drip.write(4, 't5', 't1')
+    assert_equal(@drip.tag_next(''), 't1')
+    assert_equal(@drip.tag_next('t1'), 't2')
+    assert_equal(@drip.tag_next('t3'), 't4')
+    assert_equal(@drip.tag_next('t5'), nil)
+
+    drip = Drip.new('test_db')
+    assert_equal(drip.tag_next(''), 't1')
+    assert_equal(drip.tag_next('t1'), 't2')
+    assert_equal(drip.tag_next('t3'), 't4')
+    assert_equal(drip.tag_next('t5'), nil)
+    
+    drip.write(6, 'a1')
+    assert_equal(drip.tag_next(''), 'a1')
+    assert_equal(drip.tag_next('a1'), 't1')
   end
 
   def test_twice_latest?

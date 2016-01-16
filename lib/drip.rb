@@ -181,6 +181,15 @@ class Drip
   def key_to_time(key)
     Time.at(*key.divmod(1000000))
   end
+
+  def tag_next(tag)
+    past_tag = @past.tag_next(tag)
+    it ,= @tag.lower_bound([tag, INF])
+    return past_tag unless it
+    curr_tag = it[0]
+    return curr_tag unless past_tag
+    curr_tag > past_tag ? past_tag : curr_tag
+  end
   
   private
   class SimpleStore
@@ -525,6 +534,12 @@ class Drip
       else
         return lower == upper - 1
       end
+    end
+
+    def tag_next(tag)
+      lower = lower_boundary(@tag, [tag, INF])
+      return nil unless @tag[lower]
+      @tag[lower][0][0]
     end
 
     def head_tag(n, tag)
