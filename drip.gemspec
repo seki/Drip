@@ -12,7 +12,9 @@ Gem::Specification.new do |s|
   s.description = ""
 
   s.rubyforge_project = "drip"
-  s.add_dependency "rbtree"  
+  s.add_dependency "rbtree"
+  s.add_development_dependency "test-unit"
+  s.add_development_dependency "sqlite3"
   s.files         = `git ls-files`.split("\n")
   s.test_files    = `git ls-files -- {test,spec,features}/*`.split("\n")
   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
